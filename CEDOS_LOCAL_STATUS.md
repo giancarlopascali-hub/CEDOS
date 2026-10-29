@@ -1,7 +1,7 @@
-# CEDOS local build status
+# CEDOS build and deployment status
 
-**Date:** 27 October 2026  
-**Stage:** Running locally for user testing at `http://127.0.0.1:5002`. Hugging Face Space deployment and standalone packaging are pending.
+**Date:** 29 October 2026  
+**Stage:** Deployed at [realgcp/CEDOS](https://huggingface.co/spaces/realgcp/CEDOS), synced automatically from [GitHub](https://github.com/giancarlopascali-hub/CEDOS). The local launcher remains available. Standalone packaging is pending.
 
 ## Implemented
 
@@ -17,7 +17,7 @@
 
 | Check | Result |
 |---|---|
-| Full Python suite | 307 passed, 18 dependency/runtime warnings |
+| Full Python suite | 320 passed on rerun; one Windows worker startup timeout on the first run did not reproduce |
 | Auto JavaScript contract tests | 6 passed |
 | CEDOS shell state test | Passed |
 | Source-content alignment | 9 numerical/parser files match committed source after line-ending normalization |
@@ -31,7 +31,8 @@
 | Reported acquisition regression | Focused API tests passed for LCB transfer mapping and no-Prior BO fallback; BO/TransBO menus show EI/LCB |
 | Real TransBO LCB run | A six-row dataset with three eligible Prior rows returned a fixed-noise GP suggestion; no browser alert or script error |
 | Reported surface regression | Browser test passed for contour and 3D plots: completed spinner removed and controls remain usable |
-| Local server | `/health`, `/version`, `/guide` and app page respond on `127.0.0.1:5002` |
+| Hosted server | `/health`, `/version` and the app page respond; hosted DoE, BO and TransBO small-job smoke tests passed |
+| GitHub to Space sync | Main-branch checks, clean Space upload and live version verification succeeded |
 
 The browser Auto tests mock the optimizer job responses to focus on orchestration and the identified bridge. Real BO and TransBO manual jobs were also run separately against the local server. The folder client's proposal/result/acknowledgment path has targeted Python coverage; no physical hardware is connected in this stage.
 
@@ -40,6 +41,7 @@ The browser Auto tests mock the optimizer job responses to focus on orchestratio
 - Auto bridge state is in memory in one process. A server restart clears the campaign; the Auto panel can release an interrupted proposal after a browser reload, but a server restart requires a fresh campaign.
 - The CEDOS IMEX companion supports folder exchange. Serial, network and USB hardware receive modes are not implemented here. The older AutoEDOS companion uses a different proposal/result protocol.
 - TransBO numerical feature constraints and fitted-GP duplicate avoidance are disabled because the source engine cannot enforce them throughout that path. Objective constraints remain supported.
-- HF Space deployment, clean Docker dependency review and a standalone executable build are intentionally deferred until local testing is accepted.
+- Hosted Auto requires the owner exchange token in the browser tab and local IMEX companion; the token is stored privately in `.local/cedos_auto_token.txt` on this computer. An active hosted campaign is lost if the Space restarts.
+- Standalone executable packaging is pending.
 
 Use `run_cedos.bat` to start the app if it is not already running, `stop_cedos.bat` to stop it, and `README.md` for the local user workflow.

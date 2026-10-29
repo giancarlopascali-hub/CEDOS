@@ -24,11 +24,11 @@ Auto still uses the CEDOS folder-exchange companion on your own computer. In Aut
 
 The code must match the Space's `CEDOS_AUTO_TOKEN` secret. A Space restart clears active Auto campaigns and background jobs, so start a fresh campaign after a restart.
 
-Every push to the GitHub repository's `main` branch runs the automated checks, publishes a clean runtime bundle to this Space, and verifies its `/health` and `/version` endpoints. The GitHub Actions `HF_TOKEN` secret authorizes this sync; the Space's `CEDOS_AUTO_TOKEN` secret is only for the Auto exchange. Neither secret belongs in source code.
+Every push to the [GitHub repository](https://github.com/giancarlopascali-hub/CEDOS)'s `main` branch runs the automated checks, publishes a clean runtime bundle to this Space, and verifies its `/health` and `/version` endpoints. The GitHub Actions `HF_TOKEN` secret authorizes this sync; the Space's `CEDOS_AUTO_TOKEN` secret is only for the Auto exchange. Neither secret belongs in source code.
 
 ## Start CEDOS locally
 
-On this computer, double-click `run_cedos.bat`. It uses the prepared `.venv` environment and opens `http://127.0.0.1:5002`. Port 5000 is used by another local program on this computer, so the launcher selects 5002. Keep the server window open while testing; closing it stops the app. `stop_cedos.bat` also stops the local server, including the preview instance started for you now.
+On this computer, double-click `run_cedos.bat`. It uses the prepared `.venv` environment and opens `http://127.0.0.1:5002`. Port 5000 is used by another local program on this computer, so the launcher selects 5002. Keep the server window open while testing; closing it stops the app. Use `stop_cedos.bat` to stop the local server.
 
 From PowerShell, the equivalent is:
 
