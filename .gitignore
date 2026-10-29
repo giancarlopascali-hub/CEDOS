@@ -1,0 +1,35 @@
+﻿# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+*.so
+
+# Environments & Dependencies
+.env
+.venv/
+.local/
+imex/proposals/
+imex/results/
+hf_repo/
+hf_bundle/
+env/
+venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Unit test / coverage
+.pytest_cache/
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+Plan_TransBO_Transfer_Benchmark_1.md
+implementation_plan_18Sep.md
+scratch_test_improved.py
+scratch_test_sa_comprehensive.py

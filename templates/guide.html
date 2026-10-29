@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEDOS | Quick Guide</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { padding: 0; background: var(--bg-color); }
+        .guide-container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        .search-header { position: sticky; top: 0; background: rgba(248, 250, 252, 0.9); backdrop-filter: blur(12px); padding: 1.5rem 0; z-index: 100; border-bottom: 1px solid var(--border-color); margin-bottom: 2rem; }
+        .search-input { width: 100%; padding: 1rem 1.5rem; border-radius: 12px; border: 2px solid var(--border-color); background: var(--card-bg); font-size: 1.1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .guide-section { margin-bottom: 4rem; scroll-margin-top: 100px; }
+        .guide-section.hidden { display: none; }
+        h2 { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; color: var(--text-primary); font-size: 1.8rem; border-bottom: 2px solid var(--accent-glow); padding-bottom: 0.5rem; }
+        h3 { margin: 1.5rem 0 1rem; color: var(--accent-color); font-size: 1.3rem; }
+        .badge { font-size: 0.8rem; background: var(--accent-glow); color: var(--accent-color); padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+        p, li { color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.7; }
+        ol li { margin-bottom: 1.5rem; }
+        .step-title { font-weight: 700; color: var(--text-primary); display: block; margin-bottom: 0.3rem; }
+        .info-box { background: var(--accent-glow); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--accent-color); margin: 1.5rem 0; }
+        .highlight { background-color: #fef08a; padding: 0 2px; }
+        .back-to-top { position: fixed; bottom: 2rem; right: 2rem; background: var(--accent-color); color: white; width: 45px; height: 45px; border-radius: 50%; display: none; align-items: center; justify-content: center; cursor: pointer; border: none; font-weight: bold; }
+        nav.toc { background: var(--card-bg); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 3rem; }
+        nav.toc ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        nav.toc a { text-decoration: none; color: var(--accent-color); font-weight: 500; }
+        nav.toc a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="search-header">
+        <div class="guide-container">
+            <input type="text" id="guide-search" class="search-input" placeholder="Search for instructions, modules, or features...">
+        </div>
+    </div>
+
+    <div class="guide-container">
+        <header style="margin-bottom: 2rem;">
+            <h1 style="font-size: 2.8rem; margin-bottom: 0.5rem; color: var(--text-primary);">CEDOS: Complete Experimental Design, Optimization and Statistics</h1>
+            <p style="font-size: 1.2rem;">Complete Step-by-Step Instructions</p>
+        </header>
+
+        <section class="guide-section" id="intro">
+            <h2>CEDOS Workflow Overview <span class="badge">START HERE</span></h2>
+            <p>CEDOS supports a complete experimental cycle: design an initial campaign, optimize it as results arrive, transfer knowledge from related campaigns when appropriate, and analyse the resulting data. DoE, BO and SA appear by default. The additional-module toggles reveal Auto and TransBO; TransBO replaces BO as the active optimizer while selected.</p>
+
+            <div class="workflow-graphic" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:stretch;margin:3rem 0;gap:20px;text-align:center;">
+                <div style="background:var(--card-bg);padding:2rem 1.5rem;border-radius:12px;border:2px solid var(--accent-color);box-shadow:0 4px 15px rgba(0,0,0,0.1);"><h3 style="margin-top:0;">1. DoE</h3><p style="font-size:0.95rem;margin-bottom:0;">Create a balanced starting set of experiments.</p></div>
+                <div style="background:var(--card-bg);padding:2rem 1.5rem;border-radius:12px;border:2px solid #f59e0b;box-shadow:0 4px 15px rgba(0,0,0,0.1);"><h3 style="margin-top:0;color:#f59e0b;">2. BO</h3><p style="font-size:0.95rem;margin-bottom:0;">Recommend the next conditions from your current campaign.</p></div>
+                <div style="background:var(--card-bg);padding:2rem 1.5rem;border-radius:12px;border:2px solid #7c3aed;box-shadow:0 4px 15px rgba(0,0,0,0.1);"><h3 style="margin-top:0;color:#7c3aed;">3. TransBO</h3><p style="font-size:0.95rem;margin-bottom:0;">Borrow relevant information from related historical experiments.</p></div>
+                <div style="background:var(--card-bg);padding:2rem 1.5rem;border-radius:12px;border:2px solid #10b981;box-shadow:0 4px 15px rgba(0,0,0,0.1);"><h3 style="margin-top:0;color:#10b981;">4. SA</h3><p style="font-size:0.95rem;margin-bottom:0;">Understand correlations, interactions, model reliability, and feature impact.</p></div>
+            </div>
+            <div class="info-box"><b>Choose BO or TransBO?</b> Use <b>BO</b> when every row belongs to the same optimisation problem. Use <b>TransBO</b> when historical rows differ in context—such as substrate, solvent, catalyst family, or temperature regime—and you want the model to favour rows most relevant to a new target.</div>
+            <div class="info-box"><b>Setup CSV:</b> DoE, BO, TransBO Features &amp; Objectives, and SA can exchange feature/objective settings through their Setup CSV controls. An upload shows a preview before Apply. Experimental rows, measured results, TransBO Prior Targets and optimizer tweaks are outside this file. <b>Auto:</b> enable it to start from DoE or the active optimizer; see the <a href="/auto-guide">Auto &amp; IMEX Guide</a> for the local folder workflow.</div>
+        </section>
+
+        <nav class="toc">
+            <h4 style="margin-bottom: 1rem;">Table of Contents</h4>
+            <ul>
+                <li><a href="#data">1. Data and Column Roles</a></li>
+                <li><a href="#doe">2. Design of Experiments (DoE)</a></li>
+                <li><a href="#bo">3. Bayesian Optimization (BO)</a></li>
+                <li><a href="#tbo">4. Transfer Learning BO (TransBO)</a></li>
+                <li><a href="#sa">5. Statistical Analysis (SA)</a></li>
+            </ul>
+        </nav>
+
+        <section class="guide-section" id="data">
+            <h2>1. Data and Column Roles <span class="badge">FOUNDATION</span></h2>
+            <p>Load a CSV with one row per completed experiment and one column per experimental variable or measured outcome. Column names should be meaningful and values should use a consistent unit within each column.</p>
+            <ul>
+                <li><b>F — Feature:</b> a setting the optimiser can vary, such as temperature, catalyst loading, reaction time, or solvent.</li>
+                <li><b>O — Objective:</b> an outcome to maximise, minimise, or bring to a target, such as yield, selectivity, cost, or impurity.</li>
+                <li><b>P — Prior:</b> contextual information used only by TransBO to assess whether a historical row is relevant to a new target. Typical examples are substrate SMILES, catalyst family, solvent identity, or an external condition shared across campaigns.</li>
+            </ul>
+            <div class="info-box"><b>Important:</b> a Prior is not a variable that TransBO proposes. It describes the context of an existing experiment. Keep variables you want the optimiser to choose as Features.</div>
+        </section>
+
+        <section class="guide-section" id="doe">
+            <h2>2. Design of Experiments (DoE) <span class="badge">PLANNING</span></h2>
+            <p>Use this module when starting from scratch to create a statistically sound plan for your first experiments.</p>
+            
+            <h3>Step-by-Step Instructions</h3>
+            <ol>
+                <li>
+                    <span class="step-title">Step 1: Define Features</span>
+                    Go to the <b>Features</b> tab. Add your input variables. Choose <b>Continuous</b> for smooth numeric ranges, <b>Regular</b> for fixed-step grids (e.g., `[20, 100]5` for 5 points), <b>Discrete</b> for specific values, or <b>Categorical</b> for non-numerical options (e.g., Catalyst A, B, C).
+                </li>
+                <li>
+                    <span class="step-title">Step 2: Add Objectives</span>
+                    Switch to the <b>Objectives</b> tab. Enter the names of the metrics you plan to measure (e.g., Yield, Purity, Cost).
+                </li>
+                <li>
+                    <span class="step-title">Step 3: Configure Tweaks</span>
+                    In the <b>DoE Tweaks</b> tab, choose your design model. <b>Box-Behnken</b> and face-centred <b>Central Composite</b> support response surfaces, <b>Fractional Factorial</b> offers selectable Resolution III/IV/V screening, and <b>Definitive Screening</b> uses genuine three-level screening. <b>Full Factorial</b> combines every declared categorical, discrete, and regular level; continuous factors use their lower and upper bounds. Its natural size is the product of the factor level counts. <b>LHS</b> and <b>D-Optimal</b> use an exact experiment count; the other designs offer Max or Exact behavior around their natural size.
+                </li>
+                <li>
+                    <span class="step-title">Step 4: Generate & Export</span>
+                    Click <b>"Create table of experiments"</b>. Review the suggested matrix and click <b>"Export CSV"</b>. The app will calculate quality metrics:
+                    <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                        <li><b>Orthogonality:</b> How independent the features are from each other (closer to 100% is better).</li>
+                        <li><b>D-Efficiency:</b> The overall statistical efficiency of the parameter space coverage.</li>
+                        <li><b>Resolution:</b> Reports Full factorial for a complete factorial grid, the classical resolution for a complete fractional factorial design, and N/A for reduced and other designs.</li>
+                        <li><b>Curvature:</b> Whether the design permits modeling of non-linear (curved) responses.</li>
+                    </ul>
+                </li>
+            </ol>
+            <p>A Max or Exact count below a classical design's natural size returns the requested number of runs and a warning, even when not all intended effects can be estimated. Unique conditions take priority: repeats appear only after all unique conditions in the design are exhausted. The first centre point is unique; further centre-point runs are repeats. A larger Max leaves the natural design unchanged; a larger Exact appends flagged repeats. Metrics use all returned rows, including repeats.</p>
+            <p>D-Optimal's displayed run count is guidance; smaller designs remain allowed. All design families accept algebraic and disallowed-combination constraints, subject to their factor-type restrictions. Classical designs are filtered after decoding, before reduction or feasible replication. Results identify constraint-filtered designs and report excluded rows, absent levels, removed centre points and final model rank; classical resolution and curvature labels are not inherited. Constrained LHS uses reproducible feasible candidates and farthest-point selection and is labelled LHS-derived. It reports distinct-run shortfalls without adding repeats. Bounded searches do not prove global infeasibility. D-Optimal and unconstrained designs retain their existing behavior.</p>
+            <p>Full Factorial quality calculations assess main effects, two-factor interactions, and numerical quadratic terms for factors with at least three declared levels. Continuous bounds alone cannot assess curvature. Very large grids use a sampled candidate pool for reduced designs, disclosed in the warning; requesting more than 100,000 complete factorial runs requires fewer levels or a reduced count.</p>
+        </section>
+
+        <section class="guide-section" id="bo">
+            <h2>3. Bayesian Optimization (BO) <span class="badge">OPTIMIZATION</span></h2>
+            <p>The "brain" of the app. It analyzes your current data and recommends the next best settings to reach your goals.</p>
+            
+            <h3>Step-by-Step Instructions</h3>
+            <ol>
+                <li>
+                    <span class="step-title">Step 1: Load your Data</span>
+                    Drag and drop your experimental CSV into the upload zone. Ensure your results are filled in the spreadsheet before uploading.
+                </li>
+                <li>
+                    <span class="step-title">Step 2: Configure Goals</span>
+                    In the <b>Objectives</b> tab, tell the AI what to do for each column: <b>Maximize</b>, <b>Minimize</b>, or hit a specific <b>Target</b>. Importance values define the trade-off between included objectives and are automatically kept at 100% in total. Use <b>Objective Constraints</b> for hard acceptability limits such as <code>Yield ≥ 80</code> or <code>Impurity ≤ 5</code>.
+                </li>
+                <li>
+                    <span class="step-title">Step 3: Review Pareto Trade-offs</span>
+                    Look at the <b>Pareto Front</b> chart. Orange markers show experiments that achieve the best balance of all your objectives simultaneously.
+                    <div class="info-box" style="margin: 0.5rem 0 1rem;">
+                        <b>Note:</b> The Pareto plot displays <b>raw unweighted data</b>. Even if objectives have different importance, the chart shows the physical units of your measurements to keep the visualization clear and grounded in reality.
+                    </div>
+                </li>
+                <li>
+                    <span class="step-title">Step 4: Run the Optimizer</span>
+                    Click <b>"Run Bayesian Optimization"</b>. The AI will use GPU acceleration (if available) to simulate thousands of possibilities and pick the top recommendations based on your configurations.
+                    <h4 style="margin-top: 1rem; color: var(--text-primary);">Configuring BO Tweaks</h4>
+                    <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                        <li><b>Batch Size:</b> How many new experiments the AI should propose for your next lab campaign.</li>
+                        <li><b>Optimization Strategy:</b>
+                            <ul style="margin-top: 5px; margin-bottom: 5px;">
+                                <li><b>Gradient-based (Default):</b> Fast and precise for continuous parameters.</li>
+                                <li><b>Exhaustive Grid (EDBO+):</b> Tests every possible combination of a defined grid. Ideal for highly discrete spaces or when you want to "snap" to specific equipment settings.</li>
+                            </ul>
+                        </li>
+                        <li><b>Acquisition Function:</b> For one objective, choose EI or LCB. For several objectives, Auto remains recommended; advanced users may explicitly select qLogNEHVI, qLogNParEGO, or scalarized qLogEI.</li>
+                        <li><b>Adaptive Multi-Objective Strategy:</b>
+                            <ul style="margin-top: 5px; margin-bottom: 5px;">
+                                <li><b>Equal importance:</b> Auto uses qLogNEHVI for a small objective set and qLogNParEGO when broader Pareto exploration is more computationally practical.</li>
+                                <li><b>Unequal importance:</b> Auto uses scalarized qLogEI to seek an importance-weighted compromise; qLogNParEGO is unavailable because it does not honor unequal weights directly.</li>
+                            </ul>
+                        </li>
+                        <li><b>Workload Protection:</b> This option stays hidden for ordinary jobs. When rows, features, objectives, batch size, and acquisition method cross the safety threshold, choose Auto, all rows, or representative rows. CEDOS uses actual source rows, seeks the fidelity target, and reports a best-safe-subset fallback if the target cannot be reached.</li>
+                        <li><b>Kernel:</b> The mathematical assumption about the physical surface (Matern 5/2 is standard; RBF is smoother).</li>
+                        <li><b>Exploration vs. Exploitation:</b> A slider to tell the AI whether to take risks (focus on unknown areas) or be greedy (focus near known optimal areas).</li>
+                        <li><b>Noiseless:</b> Check this only if your lab measurements have absolutely zero variance/error.</li>
+                        <li><b>Avoid Re-evaluations:</b> Prevents the AI from proposing an experiment that has the exact same parameters as one you've already done.</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <h3>The Commitment Flow (Data Management)</h3>
+            <ol>
+                <li>When the BO module suggests experiments, they appear in a green-highlighted table.</li>
+                <li>Perform those experiments in the lab and <b>type the outcomes</b> directly into the cells in that table.</li>
+                <li>Once all result boxes are filled with numbers, click <b>"Add all to Main Dataset"</b>.</li>
+                <li>This merges your new data with the old, and <b>instantly refreshes all plots</b>, ready for the next round!</li>
+            </ol>
+        </section>
+
+        
+        <section class="guide-section" id="tbo">
+            <h2>4. Transfer Learning BO (TransBO) <span class="badge" style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe;">TRANSFER LEARNING</span></h2>
+            <p>TransBO is designed for a new target context when related historical experiments are available. It does not treat every old row as equally useful: it scores each row against the Prior Targets you set, then trains on the most relevant eligible rows.</p>
+            <div class="info-box"><b>Enable TransBO in CEDOS:</b> check <b>Use TransBO instead of BO</b> under Additional modules. BO disappears and TransBO becomes the active optimizer for the DoE handoff and any Auto campaign. The main dataset remains shared with SA. Switching ordinary tabs keeps Prior roles; turning TransBO off converts <b>P</b> columns to <b>F</b> for BO and SA. Turning it on again restores Prior roles and targets if those columns' BO roles/settings were not edited. A TransBO Features &amp; Objectives Setup CSV does not save Prior Targets, so review those separately after an import.</div>
+
+            <h3>Step-by-Step Instructions</h3>
+            <ol>
+                <li><span class="step-title">Step 1: Load the combined historical dataset</span>Include completed experiments from the campaigns you want to learn from. Mark controllable settings as <b>F</b>, measured outputs as <b>O</b>, and context columns as <b style="color:#7c3aed;">P</b> in the main table. A row must have valid Feature and Objective values to be considered for GP training. DoE proposals with measured objectives can also be committed into this same dataset before the TransBO handoff.</li>
+                <li><span class="step-title">Step 2: Define the search space</span>In <b>Features</b>, set each included Feature to Continuous, Regular, Discrete, or Categorical and provide its allowed range or values. These are the values TransBO may recommend. Numerical feature constraints are unavailable in this local build because the source TransBO engine cannot enforce them throughout its fitted GP path.</li>
+                <li><span class="step-title">Step 3: Set the Prior Targets</span>In <b>Prior Targets</b>, give TransBO the context of the campaign you want to optimise:
+                    <ul>
+                        <li><b>SMILES:</b> enter the target molecule and select the minimum molecular similarity. Molecules below that Tanimoto-similarity cutoff are excluded; accepted structures receive more relevance as they approach an exact match.</li>
+                        <li><b>Numerical:</b> enter the target value and choose the accepted deviation in the column's native units. The displayed <b>target ± tolerance</b> interval defines which rows qualify, and relevance rises smoothly toward the target.</li>
+                        <li><b>Categorical:</b> choose a known level or enter a new one. A completely unseen context can lead to a cold-start recommendation because there may be too little comparable history.</li>
+                    </ul>
+                </li>
+                <li><span class="step-title">Step 4: Combine multiple Priors</span><b>Multiply</b> is strict: a row needs to match all Priors well. <b>Average</b> is more flexible: each Prior contributes according to its <b>Optimizer weight (%)</b>. These weights affect row ranking when the eligible rows exceed the GP training limit and otherwise affect how strongly the selected rows influence the optimizer; they do not change which rows satisfy the Prior filters unless a weight is set to 0%. When using Average, enter the desired weights, then click outside the field or press Enter; the remaining weights rebalance to 100%.</li>
+                <li><span class="step-title">Step 5: Review eligibility and workload</span>The live summary reports how many valid rows satisfy the individual Prior rules under Multiply or Average. Set <b>Maximum GP Training Rows</b> to the largest number of highest-ranked eligible rows you want to use. This is a computational cap applied after Prior filtering; selecting a large value is allowed, but exact-GP time and memory rise sharply. Use the CPU, RAM, and GPU selectors as assumptions for the time estimate and heed the high-workload warning.</li>
+                <li><span class="step-title">Step 6: Define objectives and constraints</span>Choose Maximize, Minimize, or Target for each Objective and set their importance. Objective Constraints are hard acceptability bounds. TransBO lowers the priority of candidates that are unlikely to satisfy them; estimator results visibly mark any predicted violation.</li>
+                <li><span class="step-title">Step 7: Run and review</span>In <b>Tweaks</b>, choose <b>EI</b> or <b>LCB</b> acquisition; the exploration slider applies to single-objective LCB. Click <b>Run Transfer Bayesian Optimization</b>. Review the suggestions, the weight distribution, eligible-row count, and training-fit diagnostics. A high training-fit R² describes how closely the surrogate fits its training rows; it is not the same measure as SA's held-out validation R². If there is no configured Prior Target, CEDOS identifies the source engine's standard-BO fallback. If the search is exhausted, it reports that state instead of showing an empty suggestion table.</li>
+                <li><span class="step-title">Step 8: Record measurements</span>Perform the suggested experiments, enter measured Objective values in the suggestion table, then use <b>Add all to Main Dataset</b>. Review the updated dataset and run TransBO again for the next cycle. SA can analyse those same measured rows.</li>
+            </ol>
+            <p class="info-box"><b>Local limitation:</b> numerical Feature constraints and No Re-evaluation are unavailable for TransBO's fitted GP path. CEDOS disables those controls and refuses a run or Setup CSV import that would silently apply an unsupported numerical Feature rule. Objective Constraints remain available.</p>
+
+            <h3>Estimator and Visualisations</h3>
+            <ul>
+                <li>Use the <b>Estimator</b> to enter a proposed combination of Feature and Prior values and obtain predicted objectives, uncertainty, and success scores.</li>
+                <li>Use the trend, contour, and 3D surface views to inspect the fitted surrogate. A contour or surface only illustrates the selected axes; other Features are held at their displayed fixed values.</li>
+                <li>If fewer than three rows qualify, broaden a numerical tolerance, lower a SMILES minimum similarity, or use the more flexible Average combination rule.</li>
+            </ul>
+        </section>
+
+        <section class="guide-section" id="sa">
+            <h2>5. Statistical Analysis (SA) <span class="badge">INSIGHTS</span></h2>
+            <p>Go beyond optimization to understand <i>why</i> your experiments are behaving the way they do.</p>
+            
+            <h3>Step-by-Step Instructions</h3>
+            <ol>
+                <li>
+                    <span class="step-title">Step 1: Select Features & Targets</span>
+                    Load your data, then go to the SA module. Check the boxes for the features you want to analyze and the objectives you want to predict.
+                </li>
+                <li>
+                    <span class="step-title">Step 2: Choose your Model</span>
+                    In <b>SA Tweaks</b>, select <b>Linear Regression</b> for simple trends, <b>Random Forest</b> for flexible non-linear relationships, or <b>Neural Network/MLP</b> when you have enough data for a more complex model. Start with a simpler model when the dataset is small.
+                </li>
+                <li>
+                    <span class="step-title">Step 3: Run Analysis</span>
+                    Click <b>"Run the Statistical Analysis"</b>. The progress panel reports the analysis phases. Use <b>Abort</b> if you need to stop a long computation; it is particularly useful for large datasets or MLP/SHAP analyses.
+                </li>
+                <li>
+                    <span class="step-title">Step 4: Exporting Results</span>
+                    Click the <b>"Export Analysis Report"</b> button to download a <b>fully interactive HTML dashboard</b> of your current results. This standalone file embeds all your analysis data and dynamic plots, allowing you to zoom, pan, and explore categorical interactions offline without needing the app.
+                </li>
+            </ol>
+
+            <h3>Understanding the Results</h3>
+            <ul>
+                <li><b>Reliability &amp; Validation:</b> SA reports a deterministic held-out validation R². It is deliberately stricter than TransBO's training-fit R², so do not compare the two values directly.</li>
+                <li><b>Correlation Matrix:</b> A heatmap showing how strongly each numeric feature affects your goals.</li>
+                <li><b>Categorical Interactions:</b> Interaction matrices showing how different combinations of levels (e.g., specific catalysts at specific pressures) impact the success score.</li>
+                <li><b>Feature Impact (SHAP Analysis):</b> A dual-panel interactive plot revealing exactly how each parameter drives the outcomes.
+                    <ul style="margin-top: 5px; margin-bottom: 5px;">
+                        <li><b>Left Panel (% Impact):</b> Bar charts showing the macro-level relative importance of each variable across the whole dataset.</li>
+                        <li><b>Right Panel (SHAP Beeswarm):</b> A colored swarm of your actual experiments. Dots pushed to the right (+ SHAP) increased the objective, dots pushed to the left (- SHAP) decreased it. Red dots mean the parameter setting was high, Blue means it was low.</li>
+                    </ul>
+                </li>
+                <li><b>Estimator Tool:</b> Use the inputs at the bottom to predict What-If scenarios. The tool gives predicted values and a success score based on your included objectives and any Objective Constraints.</li>
+            </ul>
+        </section>
+
+        <footer style="margin-top: 5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); text-align: center;">
+            <p>© 2026 CEDOS | Developed by Giancarlo Pascali</p>
+        </footer>
+    </div>
+
+    <button id="scrollToTop" class="back-to-top">↑</button>
+
+    <script>
+        const searchInput = document.getElementById('guide-search');
+        const sections = document.querySelectorAll('.guide-section');
+        const scrollBtn = document.getElementById('scrollToTop');
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            sections.forEach(section => {
+                const text = section.innerText.toLowerCase();
+                section.classList.toggle('hidden', query !== '' && !text.includes(query));
+            });
+        });
+
+        window.onscroll = () => {
+            scrollBtn.style.display = (window.scrollY > 200) ? "flex" : "none";
+        };
+        scrollBtn.onclick = () => window.scrollTo({top: 0, behavior: 'smooth'});
+    </script>
+    <script data-goatcounter="https://edos-app.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

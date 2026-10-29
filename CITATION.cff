@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: >-
+  Citation details are coming soon. If you use TransEDOS in research, please
+  see CITATION.md and cite both the software and its associated publication
+  once the publication details are available.
+title: TransEDOS
+type: software
+authors:
+  - family-names: Pascali
+    given-names: Giancarlo
+repository-code: https://github.com/giancarlopascali-hub/TransEDOS
+license: Apache-2.0

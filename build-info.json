@@ -1,0 +1,8 @@
+{
+  "application": "CEDOS",
+  "application_commit": "local-development",
+  "edos_foundation_commit": "6af1c9e5ea48ac4ca08799c83d5ab72c5748a7b7",
+  "transedos_source_commit": "0af60b40885e3ad78d87c8157625677e8762a5ba",
+  "autoedos_source_commit": "4aabb13bbbc474092d0774e07f660667334f4ec1",
+  "deployed_at": null
+}

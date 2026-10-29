@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEDOS Auto local guide</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { background: var(--bg-color); }
+        main { max-width: 920px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+        h1, h2 { color: var(--text-primary); }
+        h1 { margin-bottom: .4rem; }
+        h2 { margin-top: 2.4rem; }
+        p, li { color: var(--text-secondary); line-height: 1.65; }
+        li { margin-bottom: .6rem; }
+        code, pre { background: #f1f5f9; color: #0f172a; border-radius: 5px; }
+        code { padding: .1rem .25rem; }
+        pre { overflow-x: auto; padding: 1rem; }
+        .note { padding: 1rem 1.2rem; border: 1px solid #d8b4fe; border-radius: 10px; background: #faf5ff; }
+        .warning { border-color: #fdba74; background: #fff7ed; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>CEDOS Auto: local folder workflow</h1>
+    <p>This guide is for testing a closed experiment cycle on one computer. CEDOS generates proposals; the folder exchange writes a CSV for each proposed batch and waits for measured objective values.</p>
+
+    <h2>1. Start both local processes</h2>
+    <p>Start CEDOS with <code>run_cedos.bat</code>. The server window shows its URL, normally <code>http://127.0.0.1:5002</code>. In another PowerShell window, from the CEDOS folder, run:</p>
+    <pre>.\.venv\Scripts\python.exe imex\cedos_imex.py --server http://127.0.0.1:5002</pre>
+    <p>Use the server window's actual URL if it selected another port. The exchange creates <code>imex/proposals</code> and <code>imex/results</code>.</p>
+
+    <h2>2. Configure and start Auto</h2>
+    <ol>
+        <li>Choose BO or TransBO with the TransBO toggle. The optimizer choice stays fixed for this campaign.</li>
+        <li>Enable Auto. Start from DoE to create an initial experiment batch, or start directly from the active optimizer with an existing measured dataset.</li>
+        <li>Review features, objectives, bounds, constraints, prior targets if using TransBO, and stopping conditions. After a DoE batch is measured, Auto pauses for optimizer review before its next proposal.</li>
+        <li>DoE, BO, TransBO and SA Setup CSV files hold configuration only. They do not transfer measured rows or TransBO Prior Targets.</li>
+    </ol>
+
+    <h2>3. Return measured results</h2>
+    <ol>
+        <li>Find the new <code>Proposal_...csv</code> and matching <code>.json</code> manifest in <code>imex/proposals</code>. The proposal CSV contains a <code>row_id</code> for each suggested experiment.</li>
+        <li>In <code>imex/results</code>, open the matching <code>Results_...csv.example</code> file. Enter finite numeric values for every objective without changing row IDs or proposed feature values.</li>
+        <li>Save a copy as the same filename without <code>.example</code>, ending in <code>.csv</code>. The exchange sends it to CEDOS. An accepted file receives the <code>SENT_</code> prefix.</li>
+        <li>CEDOS merges only results that match the active campaign, proposal and row IDs. It then checks stopping conditions using the newly measured objectives.</li>
+    </ol>
+
+    <div class="note">
+        <b>Safe retries:</b> The exchange writes each proposal once and acknowledges it after the files exist. If a result submission is interrupted, leave the unsent result CSV in place and let the exchange retry.
+    </div>
+
+    <h2>Local test limits</h2>
+    <p>The CEDOS folder exchange supports files only. The previous AutoEDOS IMEX desktop program uses an older protocol; serial, network and USB hardware receive paths are outside this local build. A CEDOS server restart clears its in-memory Auto campaign, so start a new campaign after restart. Save your dataset CSV before closing the browser.</p>
+    <p class="note warning">TransBO's source optimizer cannot enforce numerical feature constraints throughout its fitted GP path or filter historical duplicates there. CEDOS blocks those unsupported constraint settings and disables the duplicate toggle.</p>
+
+    <p><a href="/" class="btn secondary small">Back to CEDOS</a></p>
+</main>
+</body>
+</html>

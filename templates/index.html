@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEDOS | Complete Experimental Design, Optimization and Statistics</title>
+    <meta name="description" content="CEDOS combines experimental design, Bayesian optimization, transfer learning, automation and statistics.">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+</head>
+
+<body data-hosted-environment="{{ 'true' if hosted_environment else 'false' }}">
+    <div class="container">
+        <header>
+                <div class="banner-container">
+                    <img src="{{ url_for('static', filename='banner.png') }}" alt="CEDOS banner" class="app-banner">
+                    <div class="banner-overlay">
+                        <div class="banner-text-right">
+                            <h1 class="banner-title">CEDOS</h1>
+                            <p class="banner-desc">Complete Experimental Design,<br>Optimization and Statistics</p>
+                            <p class="author-attribution">by Giancarlo Pascali</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <a href="mailto:g.pascali@unsw.edu.au" class="btn secondary small">Report an Issue</a>
+                        <a href="/guide" target="_blank" class="btn secondary small">Quick Guide</a>
+                        <a href="/auto-guide" target="_blank" class="btn secondary small cedos-auto-only">Auto &amp; IMEX Guide</a>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <div class="module-switcher">
+                            <button class="module-btn active" data-module="doe">DoE</button>
+                            <button class="module-btn" data-module="bo">BO</button>
+                            <button class="module-btn hidden" data-module="tbo" style="font-weight: 700;">TransBO</button>
+                            <button class="module-btn" data-module="sa">SA</button>
+                            <button class="module-btn hidden" data-module="auto">Auto</button>
+                        </div>
+                        {% if show_shutdown %}
+                            <button id="shutdown-btn" class="btn secondary small"
+                                style="color: var(--danger-color); border-color: var(--danger-color); opacity: 0.7; margin-left: 1rem;">Shutdown</button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div id="cedos-extras" class="cedos-extras" aria-label="Additional modules">
+                    <span class="cedos-extras-label">Additional modules</span>
+                    <label class="cedos-toggle"><input id="cedos-transbo-toggle" type="checkbox"> Use TransBO instead of BO</label>
+                    <label class="cedos-toggle"><input id="cedos-auto-toggle" type="checkbox"> Show Auto</label>
+                    <span class="cedos-active-label">Active optimizer: <strong id="cedos-optimizer-name">BO</strong></span>
+                </div>
+                <p id="cedos-transbo-limit" class="cedos-limit hidden">Standard BO can enforce numerical feature constraints and avoid repeated experiments. The current TransBO GP path cannot guarantee either setting, so CEDOS disables them for TransBO rather than silently returning a candidate that breaks your rules.</p>
+                <p id="cedos-notice" class="cedos-notice hidden" role="status" aria-live="polite"></p>
+        </header>
+
+        <!-- Common Data Upload (for BO and SA) -->
+        <section id="upload-section" class="card hidden">
+            <div id="drop-zone" class="drop-zone">
+                <p>Drag & Drop CSV file here or</p>
+                <label for="file-input" id="file-picker-label" class="btn secondary" style="cursor: pointer; display: inline-block;">Select File</label>
+                <input type="file" id="file-input" style="display: none;" accept=".csv">
+            </div>
+        </section>
+
+        <!-- Common Data Preview (Initially hidden, common for BO/SA) -->
+        <section id="data-section" class="card hidden">
+            <div class="card-header">
+                <h2 id="data-title">Loaded Data</h2>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="clear-data-btn" class="btn small" style="background-color: var(--danger-color); color: white; border-color: var(--danger-color);">Clear All Data</button>
+                    <button id="export-main-btn" class="btn small">Export CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="main-table">
+                    <thead id="main-table-head"></thead>
+                    <tbody id="main-table-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- --- MODULE SEGMENTS --- -->
+
+        
+        <!-- === AUTO-EDOS: 0. AUTO MODULE VIEW === -->
+        <div id="auto-module" class="module-view hidden">
+            <section class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2>Auto Setup</h2>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span>Status: <span id="auto-status-badge">Idle</span></span>
+                        <button id="save-auto-log-btn" class="btn secondary small">Save Log</button>
+                        <button id="reset-auto-btn" class="btn danger small" disabled>Full App Reset</button>
+                    </div>
+                </div>
+
+                <!-- Live stats bar -->
+                <div class="auto-stats-row">
+                    <div class="auto-stat-item">
+                        <span class="auto-stat-label">Iteration</span>
+                        <span class="auto-stat-value" id="auto-iteration-count">0</span>
+                    </div>
+                    <div class="auto-stat-item">
+                        <span class="auto-stat-label">% Global Success</span>
+                        <span class="auto-stat-value" id="auto-best-score">—</span>
+                    </div>
+                    <div class="auto-stat-item">
+                        <span class="auto-stat-label">Elapsed</span>
+                        <span class="auto-stat-value" id="auto-elapsed-time">00:00</span>
+                    </div>
+                </div>
+
+                <div class="auto-setup-container" style="margin-top: 1.5rem;">
+                    <!-- Step 1 -->
+                    <div id="step-1" class="setup-step">
+                        <div class="step-header">
+                            <input type="checkbox" id="check-imex-started">
+                            <h3>1. Have you started CEDOS-IMEX?</h3>
+                        </div>
+                        <div class="step-body">
+                            <p class="hint" style="font-size:0.85rem; color:var(--text-secondary);">The CEDOS-IMEX app must be started independently on this computer and connected to URL indicated in this window: <code id="auto-server-url-display"></code></p>
+                            {% if hosted_environment %}
+                            <div class="auto-hosted-access" style="margin-top:0.8rem; padding:0.85rem; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px;">
+                                <label for="auto-access-token" style="display:block; font-weight:600; margin-bottom:0.35rem;">Hosted Auto exchange token</label>
+                                <input id="auto-access-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the token supplied by the Space owner" style="width:100%; max-width:30rem;">
+                                <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem; flex-wrap:wrap;">
+                                    <button id="auto-access-save" type="button" class="btn secondary small">Use token for this tab</button>
+                                    <button id="auto-access-clear" type="button" class="btn secondary small">Forget token</button>
+                                    <span id="auto-access-status" role="status" aria-live="polite" style="font-size:0.8rem; color:var(--text-secondary);">A token is required for both this tab and your local CEDOS-IMEX companion.</span>
+                                </div>
+                                <p class="hint" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.6rem;">The token remains in this tab until it closes. The Space may restart; a restart ends an active Auto campaign, so export your dataset regularly.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div id="step-2" class="setup-step disabled">
+                        <div class="step-header">
+                            <input type="checkbox" id="check-start-method" disabled>
+                            <h3>2. How would you like to start?</h3>
+                        </div>
+                        <div class="step-body">
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                <button id="auto-select-doe" class="btn secondary small">Start with DoE</button>
+                                <button id="auto-select-bo" class="btn secondary small">Start with active optimizer</button>
+                            </div>
+                            <p class="hint" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem;">
+                                <b>DoE</b>: generates the first batch of experiments automatically.<br>
+                                <b>Optimizer</b>: requires an existing dataset already uploaded.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div id="step-3" class="setup-step disabled">
+                        <div class="step-header">
+                            <input type="checkbox" id="check-bo-ready" disabled>
+                            <h3>3. Check active optimizer setup</h3>
+                        </div>
+                        <div class="step-body">
+                            <button id="auto-goto-bo" class="btn secondary small">Check optimizer setup</button>
+                            <p class="hint" style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem;">Ensure features, objectives and optimization strategy are configured in the active optimizer tab.</p>
+                        </div>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div id="step-4" class="setup-step disabled">
+                        <div class="step-header">
+                            <input type="checkbox" id="check-stopping-cond" disabled>
+                            <h3>4. Optimizer stopping conditions</h3>
+                        </div>
+                        <div class="step-body">
+                            <div class="tweak-grid">
+                                <div class="tweak-item">
+                                    <label>Stop Condition</label>
+                                    <select id="auto-stop-type">
+                                        <option value="">Select condition…</option>
+                                        <option value="iterations">Number of iterations</option>
+                                        <option value="target" id="auto-stop-target-option">% Target score reached</option>
+                                        <option value="improvement">No improvement (iterations)</option>
+                                        <option value="time">Time limit (minutes)</option>
+                                    </select>
+                                </div>
+                                <div id="auto-stop-value-container" class="tweak-item hidden">
+                                    <label id="auto-stop-label">Value</label>
+                                    <input type="text" id="auto-stop-value" placeholder="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div id="auto-action-container" class="run-container" style="margin-top: 2rem; border-top: 1px dashed var(--border-color); padding-top: 2rem;">
+                    <button id="execute-autodoe-btn" class="btn primary x-large hidden">Execute AutoDoE</button>
+                    <button id="execute-autobo-btn" class="btn primary x-large hidden">Execute Auto Optimization</button>
+                </div>
+
+                <!-- Activity Log -->
+                <div id="auto-activity-log"></div>
+            </section>
+        </div>
+        <!-- === END AUTO-EDOS === -->
+
+        <!-- 4. TransBO MODULE VIEW (Transfer Learning Bayesian Optimization) -->
+        <div id="tbo-module" class="module-view hidden">
+            <button type="button" class="btn secondary small cedos-auto-only cedos-auto-back back-to-auto-btn">Back to Auto setup</button>
+            <!-- Response Surface Section -->
+            <section id="tbo-visualization-section" class="card hidden">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h2 id="tbo-vis-title" style="margin: 0; color: #7c3aed;">TransBO Visualization</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="tbo-plot-cancel-btn" type="button" class="btn secondary small hidden" disabled style="color:var(--danger-color);border-color:var(--danger-color);">⏹ Cancel plot</button>
+                        <label for="tbo-vis-type-select" style="font-weight: 600; font-size: 0.9rem; margin: 0; white-space: nowrap;">View:</label>
+                        <select id="tbo-vis-type-select" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); font-weight: 500; background: #fff;">
+                            <option value="trend">Objectives Trend</option>
+                            <option value="contour">Contour Plot</option>
+                            <option value="surface">3D Surface Plot</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="tbo-vis-controls" class="tweak-grid" style="margin-top: 1rem; margin-bottom: 1rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 1rem; display: none;">
+                    <!-- Injected dynamically for contour / surface -->
+                </div>
+                <div id="tbo-vis-plot-container" style="width: 100%; min-height: 400px; position: relative;">
+                    <div id="tbo-trend-plot" style="width: 100%; height: 400px;"></div>
+                    <div id="tbo-contour-plot" style="width: 100%; height: 500px; display: none;"></div>
+                    <div id="tbo-surface-plot" style="width: 100%; height: 550px; display: none;"></div>
+                </div>
+            </section>
+
+            <!-- Main Setup Card -->
+            <section class="card" id="tbo-setup-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                    <h2 style="margin: 0;">TransBO Setup</h2>
+                    <span style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 0.85rem;">
+                        Transfer Learning Active
+                    </span>
+                </div>
+                <div class="setup-csv-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <button id="tbo-setup-download-btn" type="button" class="btn secondary small">Download Features &amp; Objectives CSV</button>
+                    <button id="tbo-setup-upload-btn" type="button" class="btn secondary small">Upload Features &amp; Objectives CSV</button>
+                    <input id="tbo-setup-upload-input" type="file" accept=".csv,text/csv" class="hidden">
+                    <span id="tbo-setup-csv-status" class="text-secondary" role="status" aria-live="polite"></span>
+                </div>
+
+                <div class="setup-tabs">
+                    <button class="tab-btn active" data-tab="tbo-features-tab">Features</button>
+                    <button class="tab-btn" data-tab="tbo-priors-tab" style="color: #7c3aed; font-weight: 600;">Prior Targets</button>
+                    <button class="tab-btn" data-tab="tbo-objectives-tab">Objectives</button>
+                    <button class="tab-btn" data-tab="tbo-tweaks-tab">Optimization Tweaks</button>
+                </div>
+
+                <!-- Tab 1: Features -->
+                <div id="tbo-features-tab" class="tab-content">
+                    <table class="setup-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Range / Values</th>
+                                <th><input type="checkbox" id="tbo-select-all-features" title="Select / deselect all features" style="margin-right:4px;cursor:pointer;"><span>Include</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbo-features-list"></tbody>
+                    </table>
+
+                    <!-- Constraints Sub-section for TransBO -->
+                    <details class="constraints-collapsible" style="margin-top: 1.5rem;">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <div style="margin-bottom: 1.5rem;">
+                                <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Numerical Constraints</h4>
+                                <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    Build linear equations (e.g. A + B &lt;= 10) to bound search space.
+                                </p>
+                                <table class="setup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Equation</th>
+                                            <th style="width: 250px;">Add Feature Helper</th>
+                                            <th style="width: 80px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbo-numerical-constraints-list"></tbody>
+                                </table>
+                                <button id="tbo-add-num-constraint-btn" class="btn secondary small" style="margin-top: 0.5rem;" type="button">+ Add Numerical Constraint</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Tab 2: Prior Targets -->
+                <div id="tbo-priors-tab" class="tab-content hidden">
+                    <!-- Prior Dataset Capacity & Hardware Estimator -->
+                    <div class="card" style="margin-bottom: 1.5rem; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+                            <h4 style="margin: 0; color: #581c87; display: flex; align-items: center; gap: 6px;">
+                                <span>⚙️</span> Prior Experiments Limit &amp; Compute Estimator
+                            </h4>
+                            <span id="tbo-prior-cap-badge" style="font-size: 0.85rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;">
+                                Est. Compute Time: &lt; 1 min
+                            </span>
+                        </div>
+                        <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 1rem;">
+                            Select the actual maximum number of relevance-ranked experiments used to fit the exact Gaussian Process. All valid experiments are still evaluated for prior relevance.
+                        </p>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; margin-bottom: 0.35rem;">
+                                <label for="tbo-prior-cap-slider" style="font-weight: 600; color: #374151;">Maximum GP Training Rows:</label>
+                                <span>
+                                    <b id="tbo-prior-cap-val" style="color: #7c3aed; font-size: 1.05rem;">—</b>
+                                    <span style="color: #6b7280; font-size: 0.85rem;"> / <span id="tbo-prior-cap-total">0</span> dataset rows</span>
+                                </span>
+                            </div>
+                            <input type="range" id="tbo-prior-cap-slider" min="3" max="3" step="1" value="3" style="width: 100%; accent-color: #7c3aed; cursor: pointer;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">
+                                <span>Minimum (3)</span>
+                                <span id="tbo-prior-cap-max-label">Full dataset</span>
+                            </div>
+                        </div>
+
+                        <label style="display:flex;align-items:flex-start;gap:0.55rem;margin-bottom:1rem;padding:0.7rem 0.85rem;border-radius:8px;background:#fff;border:1px solid #ddd6fe;color:#581c87;font-size:0.84rem;cursor:pointer;">
+                            <input id="tbo-reduced-row-recovery-toggle" type="checkbox" style="margin-top:0.15rem;accent-color:#7c3aed;">
+                            <span><b>Allow reduced-row recovery</b><br>If exact-GP fitting encounters a recoverable resource or model-fitting error, retry using progressively fewer rows. Any recovered result is clearly marked with its actual row count. A hosted-server restart cannot be recovered automatically.</span>
+                        </label>
+
+                        <div id="tbo-selection-summary" style="margin-bottom:1rem;padding:0.75rem 0.9rem;border-radius:8px;background:#fff;border:1px solid #ddd6fe;color:#581c87;font-size:0.84rem;">
+                            Load a dataset and assign Feature, Objective, and Prior columns to calculate the GP capacity and eligible rows.
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding-top: 0.75rem; border-top: 1px dashed #ddd6fe;">
+                            <div>
+                                <label for="tbo-hw-cpu" style="font-size: 0.8rem; font-weight: 600; color: #4b5563; display: block; margin-bottom: 4px;">CPU Power:</label>
+                                <select id="tbo-hw-cpu" style="width: 100%; padding: 6px 10px; font-size: 0.82rem; border-radius: 6px; border: 1px solid #d1d5db; background: #fff;">
+                                    <option value="entry">Entry (2-4 cores)</option>
+                                    <option value="mid" selected>Mid-Range (6-8 cores)</option>
+                                    <option value="high">High-End (12-16 cores)</option>
+                                    <option value="workstation">Workstation (24+ cores)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tbo-hw-ram" style="font-size: 0.8rem; font-weight: 600; color: #4b5563; display: block; margin-bottom: 4px;">System RAM:</label>
+                                <select id="tbo-hw-ram" style="width: 100%; padding: 6px 10px; font-size: 0.82rem; border-radius: 6px; border: 1px solid #d1d5db; background: #fff;">
+                                    <option value="8">8 GB</option>
+                                    <option value="16" selected>16 GB</option>
+                                    <option value="32">32 GB</option>
+                                    <option value="64">64+ GB</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tbo-hw-gpu" style="font-size: 0.8rem; font-weight: 600; color: #4b5563; display: block; margin-bottom: 4px;">GPU Acceleration:</label>
+                                <select id="tbo-hw-gpu" style="width: 100%; padding: 6px 10px; font-size: 0.82rem; border-radius: 6px; border: 1px solid #d1d5db; background: #fff;">
+                                    <option value="none" selected>None (CPU Only)</option>
+                                    <option value="cuda">Dedicated NVIDIA GPU</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tbo-priors-container">
+                        <!-- Injected dynamically by tbo.js -->
+                    </div>
+                </div>
+
+                <!-- Tab 3: Objectives -->
+                <div id="tbo-objectives-tab" class="tab-content hidden">
+                    <table class="setup-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Target</th>
+                                <th>Importance (%)</th>
+                                <th><input type="checkbox" id="tbo-select-all-objectives" title="Select / deselect all objectives" style="margin-right:4px;cursor:pointer;"><span>Include</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbo-objectives-list"></tbody>
+                    </table>
+                    <details class="constraints-collapsible" style="margin-top: 1.5rem;">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Objective Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <table class="setup-table">
+                                <thead><tr><th>Objective</th><th>Operator</th><th>Value</th><th></th></tr></thead>
+                                <tbody id="tbo-objective-constraints-list"></tbody>
+                            </table>
+                            <button type="button" class="btn secondary small" onclick="window.addObjectiveConstraintRow('tbo')">+ Add Objective Constraint</button>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Tab 4: Tweaks -->
+                <div id="tbo-tweaks-tab" class="tab-content hidden">
+                    <div class="tweak-grid">
+                        <div class="tweak-item"><label>Batch Size</label><input type="number" id="tbo-batch-size" value="1" min="1" max="50"></div>
+                        <div class="tweak-item">
+                            <label>Acquisition</label>
+                            <select id="tbo-acq-select">
+                                <option value="EI" selected>EI</option>
+                                <option value="LCB">LCB</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item">
+                            <label>Kernel Function</label>
+                            <select id="tbo-kernel-select">
+                                <option value="matern52" selected>Matérn 5/2</option>
+                                <option value="matern32">Matérn 3/2</option>
+                                <option value="rbf">RBF (Gaussian)</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item full-width exploration-control control-disabled" aria-disabled="true" style="display: flex; flex-direction: column; opacity: 0.45; transition: opacity 0.2s ease;">
+                            <label>Exploration/Exploitation</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="tbo-exploration" min="0" max="1" step="0.01" value="0.5" style="flex: 1;" disabled>
+                                <input type="number" id="tbo-exploration-number" min="0" max="1" step="0.01" value="0.5" style="width: 80px;" disabled>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; padding-right: 90px;">
+                                <span>Exploitation (0)</span>
+                                <span>Exploration (1)</span>
+                            </div>
+                        </div>
+                        <div class="tweak-item">
+                            <label><input type="checkbox" id="tbo-noiseless-toggle"> Noiseless</label>
+                        </div>
+                        <div class="tweak-item">
+                            <label><input type="checkbox" id="tbo-avoid-reval-toggle" checked> No Re-evaluation</label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="run-container" style="text-align: center; margin: 2rem 0;">
+                <button id="tbo-run-btn" class="btn primary x-large" style="background: #7c3aed; border-color: #6d28d9; padding: 1rem 2.5rem; font-size: 1.15rem; font-weight: 700; box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);">
+                    Run Transfer Bayesian Optimization
+                </button>
+            </div>
+
+            <!-- Results Section -->
+            <section id="tbo-results-section" class="card hidden">
+                <div class="card-header">
+                    <h2 style="color: #7c3aed;">Suggested Next Experiments</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="tbo-export-btn" class="btn small">Export CSV</button>
+                    </div>
+                </div>
+
+                <div id="tbo-cold-start-banner" class="cold-start-banner hidden"></div>
+
+                <!-- Legend: populated by renderTBOResults() -->
+                <div id="tbo-results-legend" style="font-size: 0.82rem; color: #64748b; margin-bottom: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+
+                <div class="table-container">
+                    <table id="tbo-results-table">
+                        <thead id="tbo-results-head"></thead>
+                        <tbody id="tbo-results-body"></tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                    <span style="font-size: 0.83rem; color: #64748b;">
+                        ✏️ Fill in all <b>Objective</b> columns (green) after running experiments, then commit.
+                    </span>
+                    <button id="tbo-commit-suggestions-btn" class="btn success small" disabled style="opacity:0.45;">Add all to Main Dataset</button>
+                </div>
+
+                <!-- Transfer Diagnostics Panel -->
+                <div id="tbo-diagnostics-section" class="transfer-diag-card hidden" style="margin-top: 2rem; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #581c87; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px;">
+                        <span>🔬</span> Transfer Learning Diagnostics
+                    </h3>
+                    <div id="tbo-diagnostics-panel"></div>
+                    <div id="tbo-weight-chart" style="width: 100%; min-height: 320px; margin-top: 1rem;"></div>
+                </div>
+
+                <!-- Model Performance Container -->
+                <div id="tbo-performance-container" style="margin-top: 2rem;"></div>
+
+                <!-- Point Estimator -->
+                <div id="tbo-estimator-card" class="card" style="margin-top: 2rem; background: #ffffff; border: 1px solid var(--border-color);">
+                    <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Transfer Surrogate - Point Estimation</h3>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1.25rem;">
+                        Predict expected outcomes at target experimental conditions with model uncertainty (mean ± σ).
+                    </p>
+                    <div id="tbo-estimator-inputs" class="tweak-grid" style="margin-bottom: 1.5rem;"></div>
+                    <button id="tbo-estimate-btn" class="btn secondary" style="color: #7c3aed; border-color: #7c3aed; font-weight: 600;">
+                        Estimate Outcome
+                    </button>
+                    <!-- Estimator Progress Bar -->
+                    <div id="tbo-estimate-progress-container" class="hidden" style="margin-top: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #6d28d9; font-weight: 600; margin-bottom: 0.4rem;">
+                            <span id="tbo-estimate-status-text">Fitting Gaussian Process surrogate...</span>
+                            <span id="tbo-estimate-timer">0s</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #e9d5ff; border-radius: 4px; overflow: hidden; position: relative;">
+                            <div id="tbo-estimate-progress-bar" style="width: 30%; height: 100%; background: linear-gradient(90deg, #7c3aed, #a855f7); border-radius: 4px; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:0.65rem;">
+                            <button id="tbo-estimate-abort-btn" type="button" class="btn secondary small" disabled style="color:var(--danger-color);border-color:var(--danger-color);">⏹ Cancel Estimation</button>
+                        </div>
+                    </div>
+                    <div id="tbo-estimate-results" style="margin-top: 1.25rem;"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 1. DoE MODULE VIEW -->
+        <div id="doe-module" class="module-view hidden">
+            <button type="button" class="btn secondary small cedos-auto-only cedos-auto-back back-to-auto-btn">Back to Auto setup</button>
+            <section class="card">
+                <h2>DoE Setup</h2>
+                <div class="setup-csv-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <button id="doe-setup-download-btn" type="button" class="btn secondary small">Download setup CSV</button>
+                    <button id="doe-setup-upload-btn" type="button" class="btn secondary small">Upload setup CSV</button>
+                    <input id="doe-setup-upload-input" type="file" accept=".csv,text/csv" class="hidden">
+                    <span id="doe-setup-csv-status" class="text-secondary" role="status" aria-live="polite"></span>
+                </div>
+                <div class="setup-tabs">
+                    <button class="tab-btn active" data-tab="doe-features-tab">Features</button>
+                    <button class="tab-btn" data-tab="doe-objectives-tab">Objectives</button>
+                    <button class="tab-btn" data-tab="doe-tweaks-tab">DoE Tweaks</button>
+                </div>
+
+                <div id="doe-features-tab" class="tab-content">
+                    <table class="setup-table">
+                        <thead>
+                            <tr><th>Name</th><th>Type</th><th>Range / Values</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="doe-features-list"></tbody>
+                    </table>
+                    <button id="doe-add-feature-btn" class="btn secondary small" style="margin-top: 1rem;">+ Add Feature</button>
+
+                    <!-- Constraints Sub-section for DoE -->
+                    <details class="constraints-collapsible">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <div style="margin-bottom: 1.5rem;">
+                                <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Numerical Constraints</h4>
+                                <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    Select features to build an equation (e.g., A + B &lt;= 10). Features cannot be used more than once per equation.
+                                </p>
+                                <table class="setup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Equation</th>
+                                            <th style="width: 250px;">Add Feature Helper</th>
+                                            <th style="width: 80px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="doe-numerical-constraints-list"></tbody>
+                                </table>
+                                <button id="doe-add-num-constraint-btn" class="btn secondary small" style="margin-top: 0.5rem;" type="button">+ Add Numerical Constraint</button>
+                            </div>
+
+                            <div>
+                                <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Disallowed Combinations</h4>
+                                <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    Exclude specific combinations of categorical feature values.
+                                </p>
+                                <table class="setup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Forbidden Combination Definition</th>
+                                            <th style="width: 80px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="doe-disallowed-constraints-list"></tbody>
+                                </table>
+                                <button id="doe-add-disallowed-constraint-btn" class="btn secondary small" style="margin-top: 0.5rem;" type="button">+ Add Disallowed Combination</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div id="doe-objectives-tab" class="tab-content hidden">
+                    <table class="setup-table">
+                        <thead>
+                            <tr><th>Name</th><th>Type</th><th>Target</th><th>Importance (%)</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="doe-objectives-list"></tbody>
+                    </table>
+                    <button id="doe-add-objective-btn" class="btn secondary small" style="margin-top: 1rem;">+ Add Objective</button>
+                </div>
+                <div id="doe-tweaks-tab" class="tab-content hidden">
+                    <div class="tweak-grid">
+                        <div class="tweak-item">
+                            <label>Model Type</label>
+                            <select id="doe-model-select">
+                                <option value="bbdesign">Box-Behnken</option>
+                                <option value="ccdesign">Central Composite</option>
+                                <option value="fracfact">Fractional Factorial</option>
+                                <option value="fullfact">Full Factorial</option>
+                                <option value="def_screening">Definitive Screening</option>
+                                <option value="lhs">Latin Hypercube Sampling (LHS)</option>
+                                <option value="doptimal">D-Optimal</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item">
+                            <div class="segmented-switch-container">
+                                <div class="segmented-switch-header">
+                                    <label id="doe-runs-label" style="margin:0; font-weight: 600;">Max Experiments</label>
+                                    <div class="segmented-switch" id="doe-runs-switch" title="Switch between Max and Exact experiment count">
+                                        <button type="button" id="doe-switch-max-btn" class="segmented-switch-btn active">Max</button>
+                                        <button type="button" id="doe-switch-exact-btn" class="segmented-switch-btn">Exact</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="number" id="doe-max-runs" value="50" min="1">
+                            <input type="checkbox" id="doe-exact-runs-toggle" style="display: none;">
+                            <small id="doe-dopt-min-n-hint" style="color:var(--text-secondary); margin-top:0.3rem; display:none;"></small>
+                        </div>
+                        <div class="tweak-item" id="doe-dopt-order-item" style="display:none;">
+                            <label>Model Order</label>
+                            <select id="doe-dopt-order-select">
+                                <option value="linear">Linear</option>
+                                <option value="interaction">Interaction (2FI)</option>
+                                <option value="quadratic" selected>Quadratic</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item" id="doe-fracfact-resolution-item" style="display:none;">
+                            <label>Design Resolution</label>
+                            <select id="doe-fracfact-resolution-select">
+                                <option value="3">Resolution III</option>
+                                <option value="4" selected>Resolution IV</option>
+                                <option value="5">Resolution V</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="run-container">
+                <button id="doe-run-btn" class="btn primary x-large">Create table of experiments</button>
+            </div>
+            
+            <section id="doe-results-section" class="card hidden">
+                <div class="card-header">
+                    <h2>Suggested Experiments</h2>
+                    <button id="doe-export-btn" class="btn small">Export CSV</button>
+                </div>
+                <div id="doe-warning-banner" class="hidden"></div>
+                <div id="doe-quality-dashboard" class="quality-dashboard hidden"></div>
+                <div class="table-container">
+                    <table id="doe-results-table">
+                        <thead id="doe-results-head"></thead>
+                        <tbody id="doe-results-body"></tbody>
+                    </table>
+                </div>
+                <!-- Selective CSV buttons -->
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                    <button id="doe-commit-suggestions-btn" class="btn success small">Add all to Main Dataset</button>
+                    <button id="doe-import-results-btn" class="btn small" style="background-color: var(--accent-light);">Import Results CSV</button>
+                    <input type="file" id="doe-import-results-input" style="display: none;" accept=".csv">
+                    <button id="doe-export-features-btn" class="btn small">Export Features CSV</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- 2. BO MODULE VIEW (EDOS Optimization logic) -->
+        <div id="bo-module" class="module-view hidden">
+            <button type="button" class="btn secondary small cedos-auto-only cedos-auto-back back-to-auto-btn">Back to Auto setup</button>
+                <section id="bo-visualization-section" class="card hidden">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <h2 id="bo-vis-title" style="margin: 0;">BO Visualization</h2>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button id="bo-plot-cancel-btn" type="button" class="btn secondary small hidden" disabled style="color:var(--danger-color);border-color:var(--danger-color);">⏹ Cancel plot</button>
+                            <label for="bo-vis-type-select" style="font-weight: 600; font-size: 0.9rem; margin: 0; white-space: nowrap;">View:</label>
+                            <select id="bo-vis-type-select" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); font-weight: 500; background: #fff;">
+                                <option value="trend">Objectives Trend</option>
+                                <option value="contour">Contour Plot</option>
+                                <option value="surface">3D Surface Plot</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="bo-vis-controls" class="tweak-grid" style="margin-top: 1rem; margin-bottom: 1rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 1rem; display: none;">
+                        <!-- Injected dynamically for contour / surface -->
+                    </div>
+                    <div id="bo-vis-plot-container" style="width: 100%; min-height: 400px; position: relative;">
+                        <div id="trend-plot" style="width: 100%; height: 400px;"></div>
+                        <div id="bo-contour-plot" style="width: 100%; height: 500px; display: none;"></div>
+                        <div id="bo-surface-plot" style="width: 100%; height: 550px; display: none;"></div>
+                    </div>
+                </section>
+                <section id="pareto-plot-section" class="card hidden">
+                    <div class="card-header">
+                        <h2 id="pareto-title">Pareto Front</h2>
+                        <button id="pareto-export-btn" class="btn small hidden">Export Pareto CSV</button>
+                    </div>
+                    <div id="pareto-plot" style="width: 100%; height: 450px;"></div>
+                    <div id="pareto-table-container" class="table-container hidden">
+                        <table id="pareto-table">
+                            <thead id="pareto-table-head"></thead>
+                            <tbody id="pareto-table-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+            <section class="card">
+                <h2>BO Setup</h2>
+                <div class="setup-csv-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <button id="bo-setup-download-btn" type="button" class="btn secondary small">Download setup CSV</button>
+                    <button id="bo-setup-upload-btn" type="button" class="btn secondary small">Upload setup CSV</button>
+                    <input id="bo-setup-upload-input" type="file" accept=".csv,text/csv" class="hidden">
+                    <span id="bo-setup-csv-status" class="text-secondary" role="status" aria-live="polite"></span>
+                </div>
+                
+                <!-- Optimization Strategy Toggle -->
+                <div id="bo-strategy-container" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.75rem; color: var(--text-primary); font-size: 0.95rem;">Optimization Strategy</label>
+                    <div style="display: flex; gap: 2rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="radio" name="bo-strategy" value="gradient_based" checked style="width: auto;">
+                            <span>Gradient-based (Default)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="radio" name="bo-strategy" value="exhaustive_grid" style="width: auto;">
+                            <span>Exhaustive Grid (EDBO+)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Warning Banner for Auto-reclassification -->
+                <div id="bo-warning-banner" class="hidden" style="background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-size: 0.85rem; line-height: 1.4;">
+                    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                        <span style="font-size: 1.2rem;">⚠️</span>
+                        <div id="bo-warning-text"></div>
+                    </div>
+                </div>
+
+                <div class="setup-tabs">
+                    <button class="tab-btn active" data-tab="bo-features-tab">Features</button>
+                    <button class="tab-btn" data-tab="bo-objectives-tab">Objectives</button>
+                    <button class="tab-btn" data-tab="bo-tweaks-tab">Optimization Tweaks</button>
+                </div>
+                <div id="bo-features-tab" class="tab-content">
+                    <table class="setup-table">
+                        <thead><tr><th>Name</th><th>Type</th><th>Range / Values</th><th><input type="checkbox" id="bo-select-all-features" title="Select / deselect all features" style="margin-right:4px;cursor:pointer;"><span>Include</span></th></tr></thead>
+                        <tbody id="bo-features-list"></tbody>
+                    </table>
+
+                    <!-- Constraints Sub-section for BO -->
+                    <details class="constraints-collapsible">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <div style="margin-bottom: 1.5rem;">
+                                <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Numerical Constraints</h4>
+                                <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    Select features to build an equation (e.g., A + B &lt;= 10). Features cannot be used more than once per equation.
+                                </p>
+                                <table class="setup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Equation</th>
+                                            <th style="width: 250px;">Add Feature Helper</th>
+                                            <th style="width: 80px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bo-numerical-constraints-list"></tbody>
+                                </table>
+                                <button id="bo-add-num-constraint-btn" class="btn secondary small" style="margin-top: 0.5rem;" type="button">+ Add Numerical Constraint</button>
+                            </div>
+
+                            <div>
+                                <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Disallowed Combinations</h4>
+                                <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    Exclude specific combinations of categorical feature values.
+                                </p>
+                                <table class="setup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Forbidden Combination Definition</th>
+                                            <th style="width: 80px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bo-disallowed-constraints-list"></tbody>
+                                </table>
+                                <button id="bo-add-disallowed-constraint-btn" class="btn secondary small" style="margin-top: 0.5rem;" type="button">+ Add Disallowed Combination</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div id="bo-objectives-tab" class="tab-content hidden">
+                    <table class="setup-table">
+                        <thead><tr><th>Name</th><th>Type</th><th>Target</th><th>Importance (%)</th><th><input type="checkbox" id="bo-select-all-objectives" title="Select / deselect all objectives" style="margin-right:4px;cursor:pointer;"><span>Include</span></th></tr></thead>
+                        <tbody id="bo-objectives-list"></tbody>
+                    </table>
+                    <details class="constraints-collapsible" style="margin-top: 1.5rem;">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Objective Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <table class="setup-table">
+                                <thead><tr><th>Objective</th><th>Operator</th><th>Value</th><th></th></tr></thead>
+                                <tbody id="bo-objective-constraints-list"></tbody>
+                            </table>
+                            <button type="button" class="btn secondary small" onclick="window.addObjectiveConstraintRow('bo')">+ Add Objective Constraint</button>
+                        </div>
+                    </details>
+                </div>
+                <div id="bo-tweaks-tab" class="tab-content hidden">
+                    <div class="tweak-grid">
+                        <div class="tweak-item"><label>Batch Size</label><input type="number" id="batch-size" value="1" min="1" max="20" step="1"></div>
+                        <div class="tweak-item">
+                            <label>Acquisition</label>
+                            <select id="acq-type-select"><option value="EI">EI</option><option value="LCB">LCB</option></select>
+                        </div>
+                        <div id="bo-mo-method-item" class="tweak-item hidden">
+                            <label>Multi-objective method</label>
+                            <select id="bo-mo-method-select">
+                                <option value="auto">Auto (recommended)</option>
+                                <option value="qLogNEHVI">qLogNEHVI</option>
+                                <option value="qLogNParEGO">qLogNParEGO</option>
+                                <option value="scalarized-qLogEI">Scalarized qLogEI</option>
+                            </select>
+                            <small id="bo-mo-method-note" aria-live="polite" style="display:block;color:var(--text-secondary);font-size:0.75rem;margin-top:4px;"></small>
+                        </div>
+                        <div class="tweak-item">
+                            <label>Kernel Function</label>
+                            <select id="kernel-select">
+                                <option value="matern52">Matérn 5/2</option>
+                                <option value="matern32">Matérn 3/2</option>
+                                <option value="rbf">RBF (Gaussian)</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item full-width exploration-control control-disabled" aria-disabled="true" style="display: flex; flex-direction: column; opacity: 0.45; transition: opacity 0.2s ease;">
+                            <label>Exploration/Exploitation</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="style-slider" min="0" max="1" step="0.01" value="0.5" style="flex: 1;" disabled>
+                                <input type="number" id="style-number" min="0" max="1" step="0.01" value="0.5" style="width: 80px;" disabled>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; padding-right: 90px;">
+                                <span>Exploitation (0)</span>
+                                <span>Exploration (1)</span>
+                            </div>
+                        </div>
+                        <div class="tweak-item">
+                            <label><input type="checkbox" id="bo-noiseless"> Noiseless</label>
+                        </div>
+                        <div class="tweak-item">
+                            <label><input type="checkbox" id="bo-avoid-reval" checked> No Re-evaluation</label>
+                        </div>
+                        <div class="tweak-item">
+                            <label><input type="checkbox" id="bo-compute-performance"> Compute predictive cross-validation</label>
+                            <small style="display:block;color:var(--text-secondary);margin-top:4px;">Optional; this fits additional models and can materially increase runtime.</small>
+                        </div>
+                        <div id="bo-large-data-options" class="tweak-item full-width hidden" style="padding:0.85rem 1rem;border:1px solid #fde68a;border-radius:8px;background:#fffbeb;">
+                            <label style="display:flex;justify-content:space-between;gap:1rem;align-items:center;">
+                                <span>Workload protection</span>
+                                <span id="bo-workload-badge" class="badge limited">Review</span>
+                            </label>
+                            <small id="bo-workload-summary" style="display:block;color:#78350f;margin:4px 0 8px;"></small>
+                            <select id="bo-data-mode-select">
+                                <option value="auto">Auto (recommended)</option>
+                                <option value="full">Use all rows (exact GP)</option>
+                                <option value="representative">Use representative rows (exact GP)</option>
+                            </select>
+                            <small id="bo-data-mode-note" aria-live="polite" style="display:block;color:#78350f;margin-top:5px;"></small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="run-container">
+                <button id="run-btn" class="btn primary x-large">Run Bayesian Optimization</button>
+            </div>
+
+            <!-- BO Results & Analysis -->
+            <div id="bo-results-container" class="hidden">
+                <section id="results-section" class="card">
+                <div class="card-header">
+                    <h2>Suggested Experiments</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="commit-suggestions-btn" class="btn success small">Add all to Main Dataset</button>
+                        <button id="export-results-btn" class="btn small">Export CSV</button>
+                    </div>
+                </div>
+                <div class="table-container"><table id="results-table"><thead id="results-table-head"></thead><tbody id="results-table-body"></tbody></table></div>
+                <!-- Selective CSV buttons -->
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                    <button id="import-results-btn" class="btn small" style="background-color: var(--accent-light);">Import Results CSV</button>
+                    <input type="file" id="import-results-input" style="display: none;" accept=".csv">
+                    <button id="export-features-btn" class="btn small">Export Features CSV</button>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>BO Model Performance</h2>
+                </div>
+                <div id="bo-performance-info"></div>
+            </section>
+
+            <section class="card">
+                <h2>BO Outcome Estimator</h2>
+                <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1.5rem;">Estimate objective values for specific feature settings using the current BO model.</p>
+                <div id="bo-estimator-inputs" class="tweak-grid" style="margin-bottom: 2rem;">
+                    <!-- Inputs injected here -->
+                </div>
+                <button id="bo-estimate-btn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem; margin-bottom: 1.5rem;">Run BO Estimation</button>
+                <div id="bo-estimate-results" class="results-table-container shadow-inner" style="background: #fdfdfd; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color); min-height: 100px;">
+                    <!-- Results injected here -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+        <!-- 3. SA MODULE VIEW -->
+        <div id="sa-module" class="module-view hidden">
+            <button type="button" class="btn secondary small cedos-auto-only cedos-auto-back back-to-auto-btn">Back to Auto setup</button>
+            <section class="card">
+                <h2>SA Setup</h2>
+                <div class="setup-csv-actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+                    <button id="sa-setup-download-btn" type="button" class="btn secondary small">Download setup CSV</button>
+                    <button id="sa-setup-upload-btn" type="button" class="btn secondary small">Upload setup CSV</button>
+                    <input id="sa-setup-upload-input" type="file" accept=".csv,text/csv" class="hidden">
+                    <span id="sa-setup-csv-status" class="text-secondary" role="status" aria-live="polite"></span>
+                </div>
+                <div class="setup-tabs">
+                    <button class="tab-btn active" data-tab="sa-features-tab">Features</button>
+                    <button class="tab-btn" data-tab="sa-objectives-tab">Objectives</button>
+                    <button class="tab-btn" data-tab="sa-tweaks-tab">SA Tweaks</button>
+                </div>
+                <div id="sa-features-tab" class="tab-content">
+                    <table class="setup-table">
+                        <thead><tr><th>Name</th><th>Type</th><th><input type="checkbox" id="sa-select-all-features" title="Select / deselect all features" style="margin-right:4px;cursor:pointer;"><span>Include</span></th></tr></thead>
+                        <tbody id="sa-features-list"></tbody>
+                    </table>
+                </div>
+                <div id="sa-objectives-tab" class="tab-content hidden">
+                    <table class="setup-table">
+                        <thead><tr><th>Name</th><th>Type</th><th>Target</th><th>Importance (%)</th><th><input type="checkbox" id="sa-select-all-objectives" title="Select / deselect all objectives" style="margin-right:4px;cursor:pointer;"><span>Include</span></th></tr></thead>
+                        <tbody id="sa-objectives-list"></tbody>
+                    </table>
+                    <details class="constraints-collapsible" style="margin-top: 1.5rem;">
+                        <summary class="constraints-toggle">
+                            <span class="constraints-toggle-label">Objective Constraints</span>
+                            <span class="constraints-chevron">&#8250;</span>
+                        </summary>
+                        <div class="constraints-body">
+                            <table class="setup-table">
+                                <thead><tr><th>Objective</th><th>Operator</th><th>Value</th><th></th></tr></thead>
+                                <tbody id="sa-objective-constraints-list"></tbody>
+                            </table>
+                            <button type="button" class="btn secondary small" onclick="window.addObjectiveConstraintRow('sa')">+ Add Objective Constraint</button>
+                        </div>
+                    </details>
+                </div>
+                <div id="sa-tweaks-tab" class="tab-content hidden">
+                    <div class="tweak-grid">
+                        <div class="tweak-item">
+                            <label>Model</label>
+                            <select id="sa-model-select">
+                                <option value="linear">Linear Regression</option>
+                                <option value="random_forest">Random Forest</option>
+                                <option value="mlp">Neural Network (MLP)</option>
+                            </select>
+                        </div>
+                        <div class="tweak-item sa-rf-param hidden">
+                            <label>Trees (RF)</label>
+                            <input type="number" id="sa-rf-trees" value="100">
+                        </div>
+                        <div class="tweak-item sa-rf-param hidden">
+                            <label>Max Depth (RF)</label>
+                            <input type="number" id="sa-rf-depth" value="10">
+                        </div>
+                        <div class="tweak-item sa-mlp-param hidden">
+                            <label>Hidden Layers (e.g. 100,50)</label>
+                            <input type="text" id="sa-mlp-layers" value="100">
+                        </div>
+                        <div class="tweak-item sa-mlp-param hidden">
+                            <label>Max Iterations</label>
+                            <input type="number" id="sa-mlp-iter" value="500">
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="run-container">
+                <button id="sa-run-btn" class="btn primary x-large">Run the Statistical Analysis</button>
+            </div>
+
+            <!-- SA Progress Container -->
+            <div id="sa-progress-container" class="hidden" style="margin: 1.5rem auto; max-width: 650px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span id="sa-status-text" style="font-size: 0.9rem; font-weight: 600; color: #1e293b;">
+                        Preparing data and computing global success scores...
+                    </span>
+                    <span id="sa-timer-text" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-color, #3b82f6);">0s</span>
+                </div>
+                <div style="width: 100%; height: 10px; background: #f1f5f9; border-radius: 6px; overflow: hidden; position: relative;">
+                    <div id="sa-progress-bar" style="width: 15%; height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 6px; transition: width 0.4s ease;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
+                    <span>Phase 1: Metrics</span>
+                    <span>Phase 2: Interactions</span>
+                    <span>Phase 3: Model Fitting</span>
+                    <span>Phase 4: SHAP Analysis</span>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:0.9rem;">
+                    <button id="sa-abort-btn" type="button" class="btn secondary small" style="color:var(--danger-color); border-color:var(--danger-color);">⏹ Abort</button>
+                </div>
+            </div>
+
+            <!-- SA Results overhauled -->
+            <div id="sa-results-container" class="hidden">
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Reliability & Validation</h2>
+                        <button id="sa-export-report-btn" class="btn small">Export Analysis Report</button>
+                    </div>
+                    <div id="sa-reliability-info"></div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Numerical Correlation Matrix</h2>
+                        <button id="sa-corr-csv-btn" class="btn small">⬇ Download CSV</button>
+                    </div>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1rem;">Correlation between numerical features and success targets.</p>
+                    <div id="sa-num-corr" style="width: 100%; height: 400px;"></div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Categorical Analysis (Interactions)</h2>
+                        <button id="sa-cat-csv-btn" class="btn small">⬇ Download CSV</button>
+                    </div>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1rem;">View how combinations of levels impact your results.</p>
+                    <div id="sa-cat-controls" class="tweak-grid" style="margin-bottom: 1rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 1rem;">
+                        <!-- JS will inject filters here -->
+                    </div>
+                    <div id="sa-cat-interactions-container">
+                        <!-- Interaction matrices will be injected here -->
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Parallel Coordinates</h2>
+                        <button id="sa-parcoords-csv-btn" class="btn small">⬇ Download CSV</button>
+                    </div>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 0.5rem;">Select an objective to color and inspect multidimensional feature-objective interactions.</p>
+                    <p class="text-secondary" style="font-size: 0.85rem; margin-bottom: 1rem;">💡 <b>Tip:</b> Click and drag on any axis to create a <b>filter range</b>. You can apply multiple filters across different axes simultaneously to isolate specific data subsets. Drag a filter to move it, or click the axis again to clear it.</p>
+                    <div id="sa-parcoords-controls" class="tweak-grid" style="margin-bottom: 1rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 1rem;">
+                        <!-- JS will inject objective selector dropdown here -->
+                    </div>
+                    <div id="sa-parcoords-container" style="width: 100%; min-height: 480px;">
+                        <!-- Interactive Parallel Coordinates plot injected here -->
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Feature Impact</h2>
+                    </div>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1rem;">Select an objective to inspect feature importance (%) and SHAP value distributions.</p>
+                    <div id="sa-impact-controls" class="tweak-grid" style="margin-bottom: 1rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 1rem;">
+                        <!-- JS will inject objective selector dropdown here -->
+                    </div>
+                    <div id="sa-impact-container">
+                        <!-- Active impact plot set (percent + SHAP) injected here -->
+                    </div>
+                </section>
+
+                <section class="card">
+                    <h2>Optimization Outcome - Simulation</h2>
+                    <p class="text-secondary" style="font-size: 0.9rem; margin-bottom: 1.5rem;">Input specific parameter values to estimate the outcome based on the active model.</p>
+                    <div id="sa-estimator-inputs" class="tweaks-grid" style="margin-bottom: 2rem;">
+                        <!-- Inputs injected here -->
+                    </div>
+                    <button id="sa-estimate-btn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem; margin-bottom: 1.5rem;">Run Simulation</button>
+                    <div id="sa-estimate-progress" class="hidden" style="margin-bottom:1rem;padding:0.9rem;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem;font-size:0.85rem;color:#1e40af;font-weight:600;">
+                            <span id="sa-estimate-status">Queued SA estimation</span>
+                            <button id="sa-estimate-abort-btn" type="button" class="btn secondary small" disabled style="color:var(--danger-color);border-color:var(--danger-color);">⏹ Cancel</button>
+                        </div>
+                        <div style="height:7px;background:#dbeafe;border-radius:4px;overflow:hidden;">
+                            <div id="sa-estimate-progress-bar" style="width:10%;height:100%;background:#3b82f6;transition:width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    <div id="sa-estimate-results" class="results-table-container shadow-inner" style="background: #fdfdfd; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border-color); min-height: 100px;">
+                        <!-- Results injected here -->
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <dialog id="setup-import-dialog" class="cedos-import-dialog" aria-labelledby="setup-import-title">
+        <h2 id="setup-import-title">Review setup CSV</h2>
+        <div id="setup-import-preview" class="cedos-import-preview"></div>
+        <div class="cedos-dialog-actions">
+            <button id="setup-import-cancel" type="button" class="btn secondary small">Cancel</button>
+            <button id="setup-import-apply" type="button" class="btn success small">Apply setup</button>
+        </div>
+    </dialog>
+
+    <div id="loading-overlay" class="hidden">
+        <div class="spinner"></div>
+        <p id="loading-text">Optimizing...</p>
+        <p id="loading-step-detail" class="hidden"></p>
+        <div id="loading-progress-container" class="hidden">
+            <div id="loading-progress-bar"></div>
+        </div>
+        <button id="abort-calc-btn" class="btn small" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(4px);">Abort & Restore View</button>
+    </div>
+
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script data-goatcounter="https://edos-app.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+
+</html>

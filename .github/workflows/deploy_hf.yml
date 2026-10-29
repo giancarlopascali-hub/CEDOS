@@ -1,0 +1,94 @@
+name: Test and deploy CEDOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cedos-production
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt pytest
+      - run: python alignment/check_alignment.py
+      - run: python alignment/check_cedos_core.py
+      - run: python -m pytest tests -q
+      - run: node --test tests/test_cedos_shell.mjs tests/js/*.test.mjs
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - name: Write deployment metadata
+        shell: bash
+        run: |
+          FOUNDATION=$(python -c "import json; print(json.load(open('alignment/edos.lock'))['commit'])")
+          python deployment/write_build_info.py \
+            --output build-info.json \
+            --application CEDOS \
+            --application-commit "${GITHUB_SHA}" \
+            --foundation-commit "$FOUNDATION"
+      - name: Publish clean Space bundle
+        id: publish
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_TOKEN"
+          GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/spaces/realgcp/CEDOS hf_repo
+          git -C hf_repo rm -r --ignore-unmatch .
+          rsync -a app.py Dockerfile requirements.txt README.md build-info.json \
+            .dockerignore .gitattributes LICENSE NOTICE CITATION.cff CITATION.md \
+            THIRD_PARTY_NOTICES.md hf_repo/
+          rsync -a src/ hf_repo/src/
+          rsync -a static/ hf_repo/static/
+          rsync -a templates/ hf_repo/templates/
+          cat > "$RUNNER_TEMP/cedos-hf-askpass.sh" <<'EOF'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'realgcp' ;;
+            *Password*) printf '%s\n' "$HF_TOKEN" ;;
+          esac
+          EOF
+          chmod 700 "$RUNNER_TEMP/cedos-hf-askpass.sh"
+          export GIT_ASKPASS="$RUNNER_TEMP/cedos-hf-askpass.sh"
+          export GIT_TERMINAL_PROMPT=0
+          cd hf_repo
+          git config user.email "action@github.com"
+          git config user.name "CEDOS deployment"
+          git lfs install
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Deploy CEDOS from GitHub ${GITHUB_SHA}"
+            git push origin HEAD:main
+          fi
+          echo "hf_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Verify live deployment
+        shell: bash
+        run: |
+          python deployment/verify_hf.py \
+            --space realgcp/CEDOS \
+            --hf-commit "${{ steps.publish.outputs.hf_sha }}" \
+            --application-commit "${GITHUB_SHA}" \
+            --timeout 1800
