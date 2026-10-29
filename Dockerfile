@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y \
 # Copy the requirements file into the container, setting ownership to our new user
 COPY --chown=user requirements.txt .
 
+# Use the official CPU wheel on CPU-only Spaces to avoid pulling CUDA packages.
+RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
