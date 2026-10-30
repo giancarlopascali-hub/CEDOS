@@ -2,7 +2,7 @@ import './state.js';
 import cedos, { initCEDOS } from './cedos.js';
 import { safeAddListener, exportData, detectParetoIndices, detectColumnIsNumeric, rebalanceRemaining, rebalanceObjectiveConfigs, updateRangePlaceholder, formatCategoricalChoices, uniqueCategoricalChoices } from './utils.js';
 import { runDoE, renderDoEResults, rebalanceDoEDOM, attachDeleteEvents } from './modules/doe.js';
-import { abortBO, renderBOSetup, runBO, runBOEstimate, renderTrendPlot, renderParetoPlot, updateAcqSelectForMultiObj } from './modules/bo.js';
+import { abortBO, renderBOSetup, runBO, runBOEstimate, renderBOVisualization, renderTrendPlot, renderParetoPlot, updateAcqSelectForMultiObj } from './modules/bo.js';
 import { renderSASetup, runSA, runEstimate, exportSAReport, abortSA } from './modules/sa.js';
 import { updateAllConstraintsDropdowns } from './modules/constraints.js';
 import { initSetupCSV } from './modules/setup_csv.js';
@@ -32,11 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initCEDOS(renderModule);
     document.addEventListener('cedos:dataset-changed', () => { resetTBOState(); renderMainTable(); });
     document.addEventListener('cedos:config-changed', event => {
+        const reason = event.detail?.reason;
         if (['Active optimizer changed', 'Dataset column role changed',
-            'Setup CSV imported', 'Auto DoE created the dataset schema'].includes(event.detail?.reason)) {
+            'Setup CSV imported', 'Auto DoE created the dataset schema'].includes(reason)) {
             resetTBOState();
         } else {
             invalidateTBOResults();
+        }
+        if (window.currentModule === 'bo' && window.currentData?.length
+            && ['Manual setup changed', 'Manual setup rows changed', 'Setup CSV imported'].includes(reason)) {
+            renderBOVisualization({ recalculateSurface: false });
         }
     });
     document.addEventListener('cedos:campaign-state', () => renderMainTable());
@@ -340,13 +345,12 @@ async function handleFiles(files) {
             }
         });
 
+        cedos.notifyDatasetMutation('Dataset uploaded');
         renderMainTable();
         renderSetup();
+        document.getElementById('data-section').classList.remove('hidden');
         if (window.currentModule === 'bo') renderTrendPlot();
         if (window.currentModule === 'tbo') renderTBOVisualization();
-
-        document.getElementById('data-section').classList.remove('hidden');
-        cedos.notifyDatasetMutation('Dataset uploaded');
     } catch (err) {
         alert('Error loading file: ' + err.message);
     }
@@ -483,11 +487,11 @@ window.toggleColumnRole = (colName) => {
     });
 
     rebalanceObjectiveConfigs();
+    cedos.notifyConfigMutation('Dataset column role changed');
     renderMainTable();
     renderSetup();
     if (window.currentModule === 'bo') renderTrendPlot();
     if (window.currentModule === 'tbo') renderTBOVisualization();
-    cedos.notifyConfigMutation('Dataset column role changed');
 };
 
 export function renderSetup() {

@@ -1,4 +1,4 @@
-"""Browser regression for BO plot progress cleanup.
+"""Browser regressions for BO's first plot and plot progress cleanup.
 
 Run with a local CEDOS server, e.g.:
     python tests/browser/bo_surface_spinner_smoke.py http://127.0.0.1:5093
@@ -42,14 +42,10 @@ def main():
             response = page.goto(BASE, wait_until="domcontentloaded", timeout=45000)
             assert response.status == 200
             page.wait_for_function("Boolean(window.cedos)")
-            page.locator("#file-input").set_input_files({
-                "name": "surface.csv", "mimeType": "text/csv",
-                "buffer": b"x1,x2,yield\n0,0,0\n1,0,1\n0,1,1\n1,1,2\n",
-            })
-            page.wait_for_function("window.currentData?.length === 4")
+            page.locator('.module-btn[data-module="bo"]').click()
 
-            # Plotly.purge deliberately leaves arbitrary progress nodes in place.
-            # Before the fix, the Completed spinner remained beside the chart.
+            # Mark charts without depending on Plotly's external CDN. Uploading
+            # directly in BO must leave the first trend plot visible.
             page.evaluate("""() => {
                 window.Plotly = {
                     purge() {},
@@ -64,8 +60,26 @@ def main():
                     Plots: { resize() {} },
                 };
             }""")
-            page.locator('.module-btn[data-module="bo"]').click()
+            page.locator("#file-input").set_input_files({
+                "name": "surface.csv", "mimeType": "text/csv",
+                "buffer": b"x1,x2,yield\n0,0,0\n1,0,1\n0,1,1\n1,1,2\n",
+            })
+            page.wait_for_function("window.currentData?.length === 4")
+            page.locator("#bo-visualization-section").wait_for(state="visible")
+            assert page.locator("#trend-plot [data-test-chart=ready]").count() == 1
 
+            # A setup CSV import invalidates optimizer results, but the BO
+            # visualization must be restored without leaving and reentering BO.
+            with page.expect_download() as download_info:
+                page.locator("#bo-setup-download-btn").click()
+            setup_file = download_info.value.path()
+            page.locator("#bo-setup-upload-input").set_input_files(str(setup_file))
+            page.locator("#setup-import-apply").click()
+            page.locator("#bo-setup-csv-status").get_by_text("Applied", exact=False).wait_for()
+            assert page.locator("#bo-visualization-section").is_visible()
+
+            # Plotly.purge deliberately leaves arbitrary progress nodes in place.
+            # Before the fix, the Completed spinner remained beside the chart.
             for view, plot_id, control_id in [
                 ("contour", "bo-contour-plot", "bo-contour-x"),
                 ("surface", "bo-surface-plot", "bo-surf-color"),
@@ -78,8 +92,25 @@ def main():
                 assert page.locator("#bo-visualization-section").is_visible()
                 assert page.locator(f"#{control_id}").is_enabled()
 
+            # Editing BO settings should leave the selected surface controls
+            # available and ask for a fresh calculation rather than hiding it.
+            page.locator('.bo-f-range[data-col="x1"]').fill("[0, 2]")
+            page.locator('.bo-f-range[data-col="x1"]').press("Tab")
+            page.locator("#bo-surface-plot").get_by_text("BO settings changed", exact=False).wait_for()
+            assert page.locator("#bo-visualization-section").is_visible()
+            assert page.locator("#bo-vis-type-select").input_value() == "surface"
+            assert page.locator("#bo-surf-update-btn").is_enabled()
+
+            role_toggle = page.locator("#main-table-head th:first-child .type-toggle")
+            role_toggle.click()
+            assert page.evaluate("window.columnRoles.x1") == "objective"
+            assert page.locator("#bo-visualization-section").is_visible()
+            role_toggle.click()
+            assert page.evaluate("window.columnRoles.x1") == "feature"
+            assert page.locator("#bo-visualization-section").is_visible()
+
             assert not page_errors, page_errors
-            print("BO contour and 3D surface replace the Completed spinner with usable charts.")
+            print("BO plots remain usable after upload, setup import, edits, and role changes; Completed spinners clear.")
         finally:
             browser.close()
 

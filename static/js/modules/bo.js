@@ -822,7 +822,17 @@ async function cancelActiveBOPlot({ showMessage = false } = {}) {
     }
 }
 
-export function renderBOVisualization() {
+function showBOPlotNeedsUpdate(plotElement) {
+    if (!plotElement) return;
+    try { Plotly.purge(plotElement); } catch (e) {}
+    plotElement.replaceChildren();
+    const message = document.createElement('div');
+    message.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-style:italic;text-align:center;padding:1rem;';
+    message.textContent = 'BO settings changed. Select Calculate & Update to refresh this plot.';
+    plotElement.appendChild(message);
+}
+
+export function renderBOVisualization({ recalculateSurface = true } = {}) {
     cancelActiveBOPlot();
     if (!window.currentData || window.currentData.length === 0) {
         try {
@@ -865,7 +875,8 @@ export function renderBOVisualization() {
         if (contourPlotEl) contourPlotEl.style.display = 'block';
         const isValid = renderContourControls();
         if (isValid) {
-            updateContourPlot();
+            if (recalculateSurface) updateContourPlot();
+            else showBOPlotNeedsUpdate(contourPlotEl);
         }
     } else if (viewType === 'surface') {
         if (titleEl) titleEl.textContent = '3D Surface Plot (Response Surface)';
@@ -874,7 +885,8 @@ export function renderBOVisualization() {
         if (surfacePlotEl) surfacePlotEl.style.display = 'block';
         const isValid = renderSurfaceControls();
         if (isValid) {
-            updateSurfacePlot();
+            if (recalculateSurface) updateSurfacePlot();
+            else showBOPlotNeedsUpdate(surfacePlotEl);
         }
     }
 

@@ -625,15 +625,16 @@ export function renderSAResults(result) {
                 }
                 const clippedPoints = Number(sd.display_clipped_points || 0);
                 shapLayout = {
-                    title: 'SHAP Value Distribution',
+                    title: { text: 'SHAP Value Distribution' },
                     xaxis: xAxis,
                     yaxis: { showticklabels: false, range: [-0.5, yFeats.length - 0.5] },
-                    margin: { l: 20, b: 50, t: 30, r: 20 },
+                    // Leave room for the clipped-point note below the title.
+                    margin: { l: 20, b: 50, t: clippedPoints > 0 ? 85 : 50, r: 20 },
                     showlegend: false,
                     height: 400,
                     annotations: clippedPoints > 0 ? [{
                         text: `${clippedPoints} extreme point${clippedPoints === 1 ? '' : 's'} outside display range; retained in CSV`,
-                        xref: 'paper', yref: 'paper', x: 1, y: 1.08,
+                        xref: 'paper', yref: 'paper', x: 1, y: 1.03,
                         xanchor: 'right', showarrow: false,
                         font: { size: 10, color: '#64748b' }
                     }] : []
@@ -952,17 +953,12 @@ export async function exportSAReport() {
         document.querySelectorAll('[id^="sa-parcoords-"]').forEach(el => {
             capturePlot(el.id, el.layout?.title?.text || el.layout?.title || 'Parallel Coordinates');
         });
-        document.querySelectorAll('[id^="sa-bar-"], [id^="sa-shap-"]').forEach(el => {
-            const h3 = el.parentElement ? el.parentElement.querySelector('h3') : null;
-            const title = (h3 ? h3.textContent : null) || el.layout?.title?.text || el.layout?.title || 'Feature Impact Group';
-            capturePlot(el.id, title);
-        });
-
         const reliabilityHtml  = document.getElementById('sa-reliability-info').innerHTML;
         const catInteractions  = window.lastSAResult ? window.lastSAResult.cat_interactions : {};
         const objNames         = window.lastSAResult ? window.lastSAResult.extended_obj_names : [];
         const parcoordsData    = window.saParcoordsPlotData || {};
         const impactPlotData   = window.saImpactPlotData || {};
+        const scriptJson       = value => JSON.stringify(value).replace(/</g, '\\u003c');
 
         let reportHtml = `
 <!DOCTYPE html>
@@ -1048,13 +1044,33 @@ export async function exportSAReport() {
         <div id="sa-report-parcoords" class="full-plot"></div>
     </div>
 
-    <div id="impact-section"></div>
+    <div class="card" id="impact-section" style="display:none;">
+        <h2>Feature Impact Analysis</h2>
+        <div class="controls">
+            <div class="tweak-item">
+                <label for="report-impact-obj">Select Objective:</label>
+                <select id="report-impact-obj"></select>
+            </div>
+        </div>
+        <h3 id="report-impact-heading"></h3>
+        <div class="impact-group">
+            <div id="report-impact-bar" class="plot-box"></div>
+            <div id="report-impact-shap" class="plot-box"></div>
+        </div>
+    </div>
+    <div class="card" id="plotly-unavailable" style="display:none;">
+        Plots could not load. Open this report with an internet connection and refresh the page.
+    </div>
 
     <script>
-        const plotsData       = ${JSON.stringify(plotsData)};
-        const catInteractions = ${JSON.stringify(catInteractions)};
-        const parcoordsData   = ${JSON.stringify(parcoordsData)};
-        const impactPlotData  = ${JSON.stringify(impactPlotData)};
+        const plotsData       = ${scriptJson(plotsData)};
+        const catInteractions = ${scriptJson(catInteractions)};
+        const parcoordsData   = ${scriptJson(parcoordsData)};
+        const impactPlotData  = ${scriptJson(impactPlotData)};
+
+        if (typeof Plotly === 'undefined') {
+            document.getElementById('plotly-unavailable').style.display = 'block';
+        } else {
 
         const corrPlot = plotsData.find(p => p.id === 'sa-num-corr');
         if (corrPlot) {
@@ -1101,35 +1117,38 @@ export async function exportSAReport() {
         const impKeys = Object.keys(impactPlotData);
         if (impKeys.length > 0) {
             const impactSection = document.getElementById('impact-section');
-            const head = document.createElement('h2');
-            head.textContent = 'Feature Impact Analysis';
-            impactSection.appendChild(head);
+            impactSection.style.display = 'block';
+            const objectiveSelect = document.getElementById('report-impact-obj');
+            const heading = document.getElementById('report-impact-heading');
+            const barDiv = document.getElementById('report-impact-bar');
+            const shapDiv = document.getElementById('report-impact-shap');
 
-            impKeys.forEach((objKey, idx) => {
-                const pObj = impactPlotData[objKey];
-                const group = document.createElement('div');
-                group.className = 'card';
-                group.innerHTML = '<h3>Feature Impact: ' + pObj.objDisplay + '</h3><div class="impact-group"></div>';
-                const container = group.querySelector('.impact-group');
+            impKeys.forEach(objKey => {
+                const option = document.createElement('option');
+                option.value = objKey;
+                option.textContent = impactPlotData[objKey].objDisplay;
+                objectiveSelect.appendChild(option);
+            });
 
-                const barDiv = document.createElement('div');
-                barDiv.id = 'report-bar-' + idx;
-                barDiv.className = 'plot-box';
-                container.appendChild(barDiv);
+            const updateImpactPlot = () => {
+                const pObj = impactPlotData[objectiveSelect.value];
+                if (!pObj) return;
+                heading.textContent = 'Feature Impact: ' + pObj.objDisplay;
+                if (barDiv.data) Plotly.purge(barDiv);
+                if (shapDiv.data) Plotly.purge(shapDiv);
+                barDiv.innerHTML = '';
+                shapDiv.innerHTML = '';
 
-                const shapDiv = document.createElement('div');
-                shapDiv.id = 'report-shap-' + idx;
-                shapDiv.className = 'plot-box';
-                container.appendChild(shapDiv);
-
-                impactSection.appendChild(group);
-                Plotly.newPlot(barDiv.id, pObj.barData, pObj.barLayout, { responsive: true });
+                Plotly.newPlot(barDiv, pObj.barData, pObj.barLayout, { responsive: true });
                 if (pObj.hasShap) {
-                    Plotly.newPlot(shapDiv.id, pObj.shapTraces, pObj.shapLayout, { responsive: true });
+                    Plotly.newPlot(shapDiv, pObj.shapTraces, pObj.shapLayout, { responsive: true });
                 } else {
                     shapDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-style:italic;">No SHAP data available for this model.</div>';
                 }
-            });
+            };
+            objectiveSelect.addEventListener('change', updateImpactPlot);
+            updateImpactPlot();
+        }
         }
     <\/script>
 </body>
