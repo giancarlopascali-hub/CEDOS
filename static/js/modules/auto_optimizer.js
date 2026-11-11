@@ -190,7 +190,7 @@ export function buildAutoTBOPayload(win = window, doc = document) {
                 ? priorNumericalTolerance(win, name) : Number(cfg.tolerance);
             prior.tolerance = Math.max(0, tolerance || 0);
         }
-        if (prior.col_type === 'smiles') {
+        if (['smiles', 'amino_acid_sequence', 'nucleotide_sequence'].includes(prior.col_type)) {
             const similarity = cfg.min_similarity === null || cfg.min_similarity === undefined
                 || cfg.min_similarity === '' || !Number.isFinite(Number(cfg.min_similarity))
                 ? 0.5 : Number(cfg.min_similarity);

@@ -75,6 +75,14 @@ function numericalPriorScale(column) {
     return { values, minimum, maximum, span, step };
 }
 
+function isSequencePriorType(type) {
+    return type === 'amino_acid_sequence' || type === 'nucleotide_sequence';
+}
+
+function isSimilarityPriorType(type) {
+    return type === 'smiles' || isSequencePriorType(type);
+}
+
 function ensurePriorDefaults(column, config) {
     if (
         config.col_type === 'numerical'
@@ -83,7 +91,7 @@ function ensurePriorDefaults(column, config) {
         config.tolerance = numericalPriorScale(column).span / 2;
     }
     if (
-        config.col_type === 'smiles'
+        isSimilarityPriorType(config.col_type)
         && (config.min_similarity === null || config.min_similarity === '' || !Number.isFinite(Number(config.min_similarity)))
     ) {
         config.min_similarity = 0.5;
@@ -101,7 +109,7 @@ function serializePriorConfig(column) {
     };
     if (prior.col_type === 'numerical') {
         prior.tolerance = Math.max(0, Number(config.tolerance) || 0);
-    } else if (prior.col_type === 'smiles') {
+    } else if (isSimilarityPriorType(prior.col_type)) {
         prior.min_similarity = Math.min(1, Math.max(0, Number(config.min_similarity ?? 0.5)));
     }
     return prior;
@@ -431,7 +439,7 @@ function updateTBOSelectionSummary() {
         ? 'satisfy all Prior rules using Multiply'
         : 'satisfy at least one active Prior rule using Average';
     if (eligibleRows < 3) {
-        summary.innerHTML = `<b>${eligibleRows.toLocaleString()}</b> of <b>${validRows.toLocaleString()}</b> valid rows ${combineDescription}. Too few rows are available for GP fitting; broaden a numerical tolerance or SMILES similarity range, or change the combination rule.${invalidNote}`;
+        summary.innerHTML = `<b>${eligibleRows.toLocaleString()}</b> of <b>${validRows.toLocaleString()}</b> valid rows ${combineDescription}. Too few rows are available for GP fitting; broaden a numerical tolerance or similarity range, or change the combination rule.${invalidNote}`;
     } else {
         summary.innerHTML = `<b>${eligibleRows.toLocaleString()}</b> of <b>${validRows.toLocaleString()}</b> valid rows ${combineDescription}; the <b>${rowsToFit.toLocaleString()}</b> highest-ranked rows will train the GP.${invalidNote}${workloadWarning}`;
     }
@@ -550,9 +558,9 @@ export function updateTBOTimeEstimate() {
     const acquisitionSeconds = (8 + 2.5 * d * objectiveCount) * acquisitionFactor * batchFactor;
     const priorCols = (window.currentColumns || []).filter(c => window.columnRoles[c] === 'prior');
     const validRows = Number(tboSelectionPreview?.valid_rows || window.currentData?.length || 0);
-    const smilesPriors = priorCols.filter(c => window.priorConfigs?.[c]?.col_type === 'smiles').length;
-    const simplePriors = Math.max(0, priorCols.length - smilesPriors);
-    const relevanceSeconds = validRows * (simplePriors * 0.00015 + smilesPriors * 0.003);
+    const similarityPriors = priorCols.filter(c => isSimilarityPriorType(window.priorConfigs?.[c]?.col_type)).length;
+    const simplePriors = Math.max(0, priorCols.length - similarityPriors);
+    const relevanceSeconds = validRows * (simplePriors * 0.00015 + similarityPriors * 0.003);
     const estSec = Math.max(5, ((relevanceSeconds + fittingSeconds + acquisitionSeconds) / cpuMult) * ramMult * gpuMult);
     const lowerSec = Math.max(3, estSec * 0.8);
     const upperSec = estSec * 1.35;
@@ -624,7 +632,7 @@ export function renderTBOPriorsTab() {
                 <p style="color: #7e22ce; max-width: 580px; margin: 0 auto 1.25rem; font-size: 0.95rem; line-height: 1.5;">
                     To leverage Transfer Learning, mark one or more columns in the Loaded Data table as 
                     <b style="background: #7c3aed; color: white; padding: 2px 8px; border-radius: 6px;">P (Prior)</b>.
-                    You can specify target substrates (SMILES), solvents, temperatures, or catalyst types to weight prior experiments.
+                    You can specify target substrates (SMILES), sequences, solvents, temperatures, or catalyst types to weight prior experiments.
                 </p>
             </div>
         `;
@@ -713,6 +721,9 @@ export function renderTBOPriorsTab() {
         let typeBadge = '';
         if (cfg.col_type === 'smiles') {
             typeBadge = `<span style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">SMILES Molecule</span>`;
+        } else if (isSequencePriorType(cfg.col_type)) {
+            const label = cfg.col_type === 'amino_acid_sequence' ? 'Amino acid sequence' : 'Nucleotide sequence';
+            typeBadge = `<span style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">${label}</span>`;
         } else if (cfg.col_type === 'numerical') {
             typeBadge = `<span style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">Numerical Distance</span>`;
         } else {
@@ -728,6 +739,8 @@ export function renderTBOPriorsTab() {
                         <option value="categorical" ${cfg.col_type === 'categorical' ? 'selected' : ''}>Categorical</option>
                         <option value="numerical"   ${cfg.col_type === 'numerical' ? 'selected' : ''}>Numerical</option>
                         <option value="smiles"      ${cfg.col_type === 'smiles' ? 'selected' : ''}>SMILES</option>
+                        <option value="amino_acid_sequence" ${cfg.col_type === 'amino_acid_sequence' ? 'selected' : ''}>Amino acid sequence</option>
+                        <option value="nucleotide_sequence" ${cfg.col_type === 'nucleotide_sequence' ? 'selected' : ''}>Nucleotide sequence</option>
                     </select>
                 </div>
                 ${window.priorCombineRule === 'average' ? `
@@ -811,6 +824,34 @@ export function renderTBOPriorsTab() {
                     </div>
                     <div style="font-size: 0.85rem; color: #64748b;">
                         Morgan fingerprint Tanimoto similarity is used. Molecules below the selected minimum receive zero relevance.
+                    </div>
+                    <div class="tbo-live-effective-hint" data-col="${col}" style="font-size: 0.85rem; color: #475569;"></div>
+                </div>
+            `;
+        } else if (isSequencePriorType(cfg.col_type)) {
+            const minimumSimilarity = Math.min(1, Math.max(0, Number(cfg.min_similarity ?? 0.5)));
+            const sequenceLabel = cfg.col_type === 'amino_acid_sequence' ? 'amino acid' : 'nucleotide';
+            const example = cfg.col_type === 'amino_acid_sequence' ? 'e.g. MKTFFV' : 'e.g. ATGCGT';
+            innerContent += `
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <label style="font-weight: 500; font-size: 0.9rem; min-width: 100px;">Target ${sequenceLabel} sequence:</label>
+                        <input type="text" class="tbo-prior-sequence-target" data-col="${col}" value="${escapeHtmlAttribute(cfg.target_value ?? '')}" placeholder="${example}" spellcheck="false" autocapitalize="characters" style="flex: 1; min-width: 250px; font-family: monospace; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1;">
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:0.65rem;background:#f8fafc;padding:0.75rem 1rem;border-radius:8px;border:1px solid #e2e8f0;">
+                        <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;">
+                            <label style="font-size:0.9rem;font-weight:500;min-width:210px;">
+                                Minimum sequence similarity: <span class="tbo-min-similarity-val" data-col="${col}" style="font-weight:700;color:#7c3aed;">${Math.round(minimumSimilarity * 100)}%</span>
+                            </label>
+                            <input type="range" class="tbo-prior-min-similarity-slider" data-col="${col}" min="0" max="1" step="0.01" value="${minimumSimilarity}" style="flex:1;min-width:200px;max-width:360px;accent-color:#7c3aed;">
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#64748b;max-width:610px;">
+                            <span>Broader sequence neighbourhood</span>
+                            <span>Exact sequence only</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #64748b;">
+                        Similarity accounts for substitutions, insertions, and deletions. Sequences below the selected minimum receive zero relevance.
                     </div>
                     <div class="tbo-live-effective-hint" data-col="${col}" style="font-size: 0.85rem; color: #475569;"></div>
                 </div>
@@ -900,6 +941,14 @@ export function renderTBOPriorsTab() {
         const smilesTarget = card.querySelector('.tbo-prior-smiles-target');
         if (smilesTarget) {
             smilesTarget.addEventListener('input', (e) => {
+                cfg.target_value = e.target.value.trim();
+                scheduleTBOSelectionPreview(600);
+            });
+        }
+
+        const sequenceTarget = card.querySelector('.tbo-prior-sequence-target');
+        if (sequenceTarget) {
+            sequenceTarget.addEventListener('input', (e) => {
                 cfg.target_value = e.target.value.trim();
                 scheduleTBOSelectionPreview(600);
             });
@@ -1681,9 +1730,9 @@ export function renderTransferDiagnostics(transfer) {
                         ${Object.entries(transfer.weight_stats).map(([col, s]) => `
                             <tr>
                                 <td style="font-weight: 600;">${col}</td>
-                                <td style="text-transform: uppercase; font-size: 0.8rem; color: #64748b;">${s.col_type}</td>
+                                <td style="font-size: 0.8rem; color: #64748b;">${s.col_type === 'amino_acid_sequence' ? 'Amino acid sequence' : s.col_type === 'nucleotide_sequence' ? 'Nucleotide sequence' : s.col_type.toUpperCase()}</td>
                                 <td style="font-family: monospace; font-size: 0.85rem;">${s.target_value}</td>
-                                <td>${s.col_type === 'numerical' ? `± ${formatPriorNumber(Number(s.tolerance))}` : (s.col_type === 'smiles' ? `≥ ${Math.round(Number(s.min_similarity) * 100)}%` : 'Exact match')}</td>
+                                <td>${s.col_type === 'numerical' ? `± ${formatPriorNumber(Number(s.tolerance))}` : (isSimilarityPriorType(s.col_type) ? `≥ ${Math.round(Number(s.min_similarity) * 100)}%` : 'Exact match')}</td>
                                 <td>${s.min}</td>
                                 <td style="font-weight: 600; color: #7c3aed;">${s.mean}</td>
                                 <td>${s.max}</td>
@@ -1807,7 +1856,7 @@ export function renderTBOEstimator() {
         let fType = 'continuous';
         if (isPrior) {
             const pType = window.priorConfigs[col]?.col_type;
-            fType = (pType === 'categorical' || pType === 'smiles' || (!isNum && !pType)) ? 'categorical' : 'continuous';
+            fType = (pType === 'categorical' || isSimilarityPriorType(pType) || (!isNum && !pType)) ? 'categorical' : 'continuous';
         } else {
             fType = window.boFeatureConfigs[col]?.type || (isNum ? 'continuous' : 'categorical');
         }
@@ -2058,7 +2107,7 @@ function getTBOFeatureType(featName) {
     if (window.columnRoles[featName] === 'prior') {
         const pType = window.priorConfigs[featName]?.col_type;
         if (pType === 'continuous' || pType === 'discrete' || pType === 'numerical') return 'continuous';
-        if (pType === 'categorical' || pType === 'smiles') return 'categorical';
+        if (pType === 'categorical' || isSimilarityPriorType(pType)) return 'categorical';
         const colIdx = window.currentColumns.indexOf(featName);
         const vals = window.currentData ? window.currentData.map(r => r[colIdx]).filter(v => v != null && v !== '') : [];
         return (vals.length > 0 && vals.every(v => !isNaN(parseFloat(v)))) ? 'continuous' : 'categorical';

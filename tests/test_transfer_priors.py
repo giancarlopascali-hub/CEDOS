@@ -1,3 +1,4 @@
+import io
 import unittest
 from unittest.mock import patch
 
@@ -64,6 +65,71 @@ class PriorEligibilityTests(unittest.TestCase):
         )
         self.assertEqual(resolved['min_similarity'], 1.0)
         np.testing.assert_array_equal(weights, np.array([1.0, 0.0, 0.0, 0.0]))
+
+    def test_amino_acid_sequences_use_the_similarity_cutoff_and_weights(self):
+        weights, eligible, resolved = compute_transfer_relevance(
+            ['MKTW', 'mktw', 'MKAW', 'MKT', 'YYYY', 'MK?W', None],
+            target_value='MKTW',
+            col_type='amino_acid_sequence',
+            min_similarity=0.75,
+        )
+        np.testing.assert_array_equal(
+            eligible, [True, True, True, True, False, False, False]
+        )
+        np.testing.assert_allclose(weights, [1, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(resolved['min_similarity'], 0.75)
+
+        closer_weights, closer_eligible, _ = compute_transfer_relevance(
+            ['MKTW', 'MKAW', 'YYYY'],
+            target_value='MKTW',
+            col_type='amino_acid_sequence',
+            min_similarity=0.5,
+        )
+        np.testing.assert_array_equal(closer_eligible, [True, True, False])
+        self.assertGreater(closer_weights[0], closer_weights[1])
+
+    def test_nucleotide_sequences_normalize_dna_rna_and_allow_indels(self):
+        weights, eligible, _ = compute_transfer_relevance(
+            ['ATGC', 'AUGC', 'ATG', 'ATGGGC', 'TTTT', 'AT1C', None],
+            target_value='AUGC',
+            col_type='nucleotide_sequence',
+            min_similarity=0.75,
+        )
+        np.testing.assert_array_equal(
+            eligible, [True, True, True, False, False, False, False]
+        )
+        np.testing.assert_allclose(weights, [1, 1, 0, 0, 0, 0, 0])
+
+        weights, eligible, _ = compute_transfer_relevance(
+            ['AT1C', 'ATGC', 'CCCC'],
+            target_value='ATGC',
+            col_type='nucleotide_sequence',
+            min_similarity=0,
+        )
+        np.testing.assert_array_equal(eligible, [False, True, True])
+        self.assertEqual(weights[0], 0)
+
+        _, eligible, _ = compute_transfer_relevance(
+            ['NAT', 'nan', None],
+            target_value='NAT',
+            col_type='nucleotide_sequence',
+            min_similarity=1,
+        )
+        np.testing.assert_array_equal(eligible, [True, False, False])
+        _, eligible, _ = compute_transfer_relevance(
+            ['NAN'], 'nan', 'amino_acid_sequence', min_similarity=1
+        )
+        np.testing.assert_array_equal(eligible, [True])
+
+    def test_sequence_target_and_cutoff_are_validated(self):
+        with self.assertRaisesRegex(ValueError, 'invalid characters'):
+            compute_transfer_relevance(
+                ['ATGC'], 'AT1C', 'nucleotide_sequence', min_similarity=0.5
+            )
+        with self.assertRaisesRegex(ValueError, 'between 0 and 1'):
+            compute_transfer_relevance(
+                ['MKTW'], 'MKTW', 'amino_acid_sequence', min_similarity=1.1
+            )
 
     def test_multiply_is_intersection_and_average_is_union(self):
         dataframe = pd.DataFrame({
@@ -155,6 +221,50 @@ class PriorEligibilityTests(unittest.TestCase):
             response = client.post('/transfer_selection_preview', json=payload)
         self.assertEqual(response.status_code, 400)
         self.assertIn('zero or greater', response.get_json()['error'])
+
+    def test_preview_api_accepts_sequence_prior_and_reports_eligible_rows(self):
+        payload = {
+            'data': [
+                [0.0, 'MKTW', 1.0],
+                [1.0, 'MKAW', 2.0],
+                [2.0, 'MKTW', 3.0],
+                [3.0, 'YYYY', 4.0],
+            ],
+            'columns': ['X', 'Sequence', 'Y'],
+            'features': [{'name': 'X', 'type': 'continuous', 'range': '[0, 3]'}],
+            'objectives': [{'name': 'Y', 'type': 'maximize'}],
+            'priors': [{
+                'name': 'Sequence',
+                'col_type': 'amino_acid_sequence',
+                'target_value': 'MKTW',
+                'min_similarity': 0.75,
+            }],
+            'tweaks': {'max_gp_rows': 4},
+        }
+        with app.test_client() as client:
+            response = client.post('/transfer_selection_preview', json=payload)
+            self.assertEqual(response.status_code, 200)
+            preview = response.get_json()
+            self.assertEqual(preview['eligible_rows'], 3)
+            self.assertEqual(preview['prior_stats']['Sequence']['n_eligible'], 3)
+            payload['priors'][0]['min_similarity'] = 1.5
+            response = client.post('/transfer_selection_preview', json=payload)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('between 0 and 100%', response.get_json()['error'])
+
+    def test_upload_preserves_sequence_strings_that_look_like_missing_values(self):
+        csv_data = b'Sequence,Y\nNA,1\nNAN,2\nNULL,3\n,4\n'
+        with app.test_client() as client:
+            response = client.post(
+                '/upload',
+                data={'file': (io.BytesIO(csv_data), 'sequences.csv')},
+                content_type='multipart/form-data',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()['data'],
+            [['NA', 1], ['NAN', 2], ['NULL', 3], [None, 4]],
+        )
 
     def test_no_prior_fallback_delegates_full_data_to_standard_bo(self):
         dataframe = pd.DataFrame({

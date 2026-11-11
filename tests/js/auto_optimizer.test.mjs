@@ -99,6 +99,17 @@ test('Auto TransBO mirrors supported manual transfer settings and retains priors
         allow_reduced_row_recovery: false,
         constraints: { numerical: [], disallowed: [] }, objective_constraints: []
     });
+    for (const col_type of ['amino_acid_sequence', 'nucleotide_sequence']) {
+        win.priorConfigs.source = {
+            col_type,
+            target_value: col_type === 'amino_acid_sequence' ? 'MKTW' : 'ATGC',
+            min_similarity: 0.83,
+            prior_weight: 100
+        };
+        const sequenceAdapter = buildAutoTBOPayload(win, browser);
+        assert.equal(sequenceAdapter.payload.priors[0].col_type, col_type);
+        assert.equal(sequenceAdapter.payload.priors[0].min_similarity, 0.83);
+    }
     const constrained = doc({}, {
         '#tbo-numerical-constraints-list tr': [row({ '.constraint-equation': input('x < 5') })],
         '#tbo-disallowed-constraints-list tr': []

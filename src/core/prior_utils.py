@@ -2,12 +2,22 @@
 TransEDOS - Prior Columns and Transfer Learning Utilities
 ==========================================================
 Provides heuristics for prior column type detection (Categorical, Numerical, SMILES),
-chemical fingerprint calculations via RDKit, distance metrics, and row-wise
+chemical fingerprint and sequence similarity calculations, distance metrics, and row-wise
 transfer learning weight combinations.
 """
 
 import numpy as np
 import pandas as pd
+from rapidfuzz.distance import Levenshtein
+
+
+SEQUENCE_PRIOR_TYPES = frozenset({"amino_acid_sequence", "nucleotide_sequence"})
+_SEQUENCE_ALPHABETS = {
+    # The extra letters denote ambiguous or uncommon residues; they compare literally.
+    "amino_acid_sequence": frozenset("ACDEFGHIKLMNPQRSTVWYBXZJUO*"),
+    # IUPAC ambiguity symbols are accepted and compare literally. U is normalized to T.
+    "nucleotide_sequence": frozenset("ACGTRYSWKMBDHVN"),
+}
 
 # Hard dependency check: RDKit must be importable
 try:
@@ -100,6 +110,21 @@ def _is_null_or_empty(val) -> bool:
     return s in ("", "none", "nan", "null", "nat", "undefined")
 
 
+def _normalise_sequence(value, col_type):
+    """Return an uppercase sequence, or None for missing/invalid values."""
+    # Generic text placeholders such as "nan" and "nat" are valid sequences.
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, (float, np.floating)) and not np.isfinite(value):
+        return None
+    sequence = str(value).strip().upper()
+    if col_type == "nucleotide_sequence":
+        sequence = sequence.replace("U", "T")
+    if not sequence or not set(sequence) <= _SEQUENCE_ALPHABETS[col_type]:
+        return None
+    return sequence
+
+
 def _get_morgan_fp(smiles_str: str):
     """Parses SMILES and returns Morgan fingerprint with caching."""
     if _is_null_or_empty(smiles_str):
@@ -178,7 +203,7 @@ def compute_transfer_relevance(
 ):
     """Return per-row relevance, eligibility, and the resolved prior setting.
 
-    Eligibility is intentionally separate from relevance. Numerical and SMILES
+    Eligibility is intentionally separate from relevance. Numerical, SMILES, and sequence
     priors have explicit, user-visible acceptance boundaries, while relevance
     changes smoothly within those boundaries. Categorical priors remain exact
     0/1 matches.
@@ -267,8 +292,54 @@ def compute_transfer_relevance(
             weights[eligible] = _smoothstep(closeness[eligible])
         return weights, eligible, {"min_similarity": resolved_similarity}
 
+    if col_type in SEQUENCE_PRIOR_TYPES:
+        label = "Amino acid" if col_type == "amino_acid_sequence" else "Nucleotide"
+        if min_similarity in (None, ""):
+            resolved_similarity = 0.5
+        else:
+            try:
+                resolved_similarity = float(min_similarity)
+            except (TypeError, ValueError):
+                raise ValueError(f"{label} sequence minimum similarity must be a valid number.")
+        if not np.isfinite(resolved_similarity) or not 0.0 <= resolved_similarity <= 1.0:
+            raise ValueError(f"{label} sequence minimum similarity must be between 0 and 1.")
+        resolved = {"min_similarity": resolved_similarity}
+        if target_value is None or (isinstance(target_value, str) and not target_value.strip()):
+            return weights, eligible, resolved
+
+        target_sequence = _normalise_sequence(target_value, col_type)
+        if target_sequence is None:
+            raise ValueError(f"{label} sequence target contains invalid characters.")
+
+        # Normalized global edit similarity counts insertions, deletions and
+        # substitutions equally. A local cache avoids repeating comparisons for
+        # duplicate historical sequences without retaining uploaded data globally.
+        similarities = np.zeros(n_rows, dtype=float)
+        valid = np.zeros(n_rows, dtype=bool)
+        cached_scores = {}
+        for index, source_value in enumerate(source_values):
+            source_sequence = _normalise_sequence(source_value, col_type)
+            if source_sequence is None:
+                continue
+            valid[index] = True
+            if source_sequence not in cached_scores:
+                cached_scores[source_sequence] = Levenshtein.normalized_similarity(
+                    source_sequence, target_sequence
+                )
+            similarities[index] = cached_scores[source_sequence]
+
+        eligible = valid & (similarities >= resolved_similarity)
+        if resolved_similarity >= 1.0:
+            weights[eligible] = 1.0
+        else:
+            closeness = (
+                (similarities - resolved_similarity) / (1.0 - resolved_similarity)
+            )
+            weights[eligible] = _smoothstep(closeness[eligible])
+        return weights, eligible, resolved
+
     raise ValueError(
-        f"Unsupported Prior type '{col_type}'. Choose categorical, numerical, or SMILES."
+        f"Unsupported Prior type '{col_type}'. Choose categorical, numerical, SMILES, amino acid sequence, or nucleotide sequence."
     )
 
 

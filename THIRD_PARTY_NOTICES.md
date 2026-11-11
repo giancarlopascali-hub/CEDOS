@@ -27,6 +27,7 @@ particularly in a standalone or container image.
 | Gunicorn | 23.0.0 | MIT | https://github.com/benoitc/gunicorn |
 | SHAP | >=0.40.0 | MIT | https://github.com/shap/shap |
 | RDKit | 2026.3.6 | BSD-3-Clause | https://github.com/rdkit/rdkit |
+| RapidFuzz | 3.14.6 | MIT | https://github.com/rapidfuzz/RapidFuzz |
 | python-dotenv | >=1.0.0 | BSD-3-Clause | https://github.com/theskumar/python-dotenv |
 
 These packages may install transitive dependencies with additional licence

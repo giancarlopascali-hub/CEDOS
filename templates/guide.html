@@ -73,7 +73,7 @@
             <ul>
                 <li><b>F — Feature:</b> a setting the optimiser can vary, such as temperature, catalyst loading, reaction time, or solvent.</li>
                 <li><b>O — Objective:</b> an outcome to maximise, minimise, or bring to a target, such as yield, selectivity, cost, or impurity.</li>
-                <li><b>P — Prior:</b> contextual information used only by TransBO to assess whether a historical row is relevant to a new target. Typical examples are substrate SMILES, catalyst family, solvent identity, or an external condition shared across campaigns.</li>
+                <li><b>P — Prior:</b> contextual information used only by TransBO to assess whether a historical row is relevant to a new target. Typical examples are substrate SMILES, amino acid or nucleotide sequence, catalyst family, solvent identity, or an external condition shared across campaigns.</li>
             </ul>
             <div class="info-box"><b>Important:</b> a Prior is not a variable that TransBO proposes. It describes the context of an existing experiment. Keep variables you want the optimiser to choose as Features.</div>
         </section>
@@ -183,6 +183,7 @@
                 <li><span class="step-title">Step 3: Set the Prior Targets</span>In <b>Prior Targets</b>, give TransBO the context of the campaign you want to optimise:
                     <ul>
                         <li><b>SMILES:</b> enter the target molecule and select the minimum molecular similarity. Molecules below that Tanimoto-similarity cutoff are excluded; accepted structures receive more relevance as they approach an exact match.</li>
+                        <li><b>Amino acid or nucleotide sequence:</b> select the sequence type, enter a single-letter target sequence, and set the minimum sequence similarity with the slider. Similarity compares the whole sequence, counting substitutions, insertions, and deletions; rows below the cutoff are excluded. DNA and RNA use the same comparison by treating U as T.</li>
                         <li><b>Numerical:</b> enter the target value and choose the accepted deviation in the column's native units. The displayed <b>target ± tolerance</b> interval defines which rows qualify, and relevance rises smoothly toward the target.</li>
                         <li><b>Categorical:</b> choose a known level or enter a new one. A completely unseen context can lead to a cold-start recommendation because there may be too little comparable history.</li>
                     </ul>
@@ -199,7 +200,7 @@
             <ul>
                 <li>Use the <b>Estimator</b> to enter a proposed combination of Feature and Prior values and obtain predicted objectives, uncertainty, and success scores.</li>
                 <li>Use the trend, contour, and 3D surface views to inspect the fitted surrogate. A contour or surface only illustrates the selected axes; other Features are held at their displayed fixed values.</li>
-                <li>If fewer than three rows qualify, broaden a numerical tolerance, lower a SMILES minimum similarity, or use the more flexible Average combination rule.</li>
+                <li>If fewer than three rows qualify, broaden a numerical tolerance, lower a SMILES or sequence minimum similarity, or use the more flexible Average combination rule.</li>
             </ul>
         </section>
 

@@ -8,7 +8,9 @@ function featureConfigFromPrior(column, priorConfig) {
     const index = (window.currentColumns || []).indexOf(column);
     const values = index < 0 ? [] : (window.currentData || [])
         .map(row => row[index]).filter(value => value !== null && value !== undefined && String(value).trim() !== '');
-    const declaredCategorical = ['categorical', 'smiles'].includes(priorConfig?.col_type);
+    const declaredCategorical = [
+        'categorical', 'smiles', 'amino_acid_sequence', 'nucleotide_sequence'
+    ].includes(priorConfig?.col_type);
     const numeric = !declaredCategorical &&
         (priorConfig?.col_type === 'numerical' || detectColumnIsNumeric(values));
     if (numeric) {

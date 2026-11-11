@@ -118,6 +118,18 @@ assert.equal(window.priorConfigs.context.target_value, 'A');
 assert.equal(window.boFeatureConfigs.context, undefined);
 assert.equal(window.saFeatureConfigs.context, undefined);
 
+// Explicit sequence Prior types retain categorical feature roles when TransBO is off.
+for (const col_type of ['amino_acid_sequence', 'nucleotide_sequence']) {
+    window.priorConfigs.context = { target_value: 'MKTW', col_type };
+    window.currentData = [[1, '123', 3]];
+    cedos.setTransBOEnabled(false);
+    assert.equal(window.boFeatureConfigs.context.type, 'categorical');
+    cedos.setTransBOEnabled(true);
+    assert.equal(window.priorConfigs.context.col_type, col_type);
+}
+window.currentData = [[1, 'A', 3]];
+window.priorConfigs.context = { target_value: 'A', col_type: 'categorical' };
+
 // An explicit BO feature edit must not be overwritten by a later toggle.
 cedos.setTransBOEnabled(false);
 window.boFeatureConfigs.context.range = 'A, B';

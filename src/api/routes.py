@@ -46,7 +46,11 @@ from src.core.constraints import (
     validate_objective_constraints,
 )
 from src.core.setup_csv import parse_setup_csv, serialize_setup_csv
-from src.core.prior_utils import detect_prior_column_type, assert_rdkit
+from src.core.prior_utils import (
+    SEQUENCE_PRIOR_TYPES,
+    detect_prior_column_type,
+    assert_rdkit,
+)
 from src.core.transfer_bo import (
     TransferCalculationCancelled,
     TransferGPFitError,
@@ -465,9 +469,9 @@ def _validated_priors(raw_priors):
             raise ValueError('Each Prior configuration requires a column name.')
         prior['name'] = name
         col_type = str(prior.get('col_type') or 'categorical').lower().strip()
-        if col_type not in {'categorical', 'numerical', 'smiles'}:
+        if col_type not in {'categorical', 'numerical', 'smiles'} | SEQUENCE_PRIOR_TYPES:
             raise ValueError(
-                f"Unsupported Prior type for '{name}'. Choose categorical, numerical, or SMILES."
+                f"Unsupported Prior type for '{name}'. Choose categorical, numerical, SMILES, amino acid sequence, or nucleotide sequence."
             )
         prior['col_type'] = col_type
 
@@ -481,16 +485,19 @@ def _validated_priors(raw_priors):
                     f"Numerical tolerance for '{name}' must be zero or greater."
                 )
             prior['tolerance'] = tolerance
-        if col_type == 'smiles':
+        if col_type == 'smiles' or col_type in SEQUENCE_PRIOR_TYPES:
+            similarity_label = (
+                'molecular' if col_type == 'smiles' else 'sequence'
+            )
             try:
                 minimum = float(prior.get('min_similarity', 0.5))
             except (TypeError, ValueError):
                 raise ValueError(
-                    f"Minimum molecular similarity for '{name}' must be a number."
+                    f"Minimum {similarity_label} similarity for '{name}' must be a number."
                 )
             if not math.isfinite(minimum) or not 0.0 <= minimum <= 1.0:
                 raise ValueError(
-                    f"Minimum molecular similarity for '{name}' must be between 0 and 100%."
+                    f"Minimum {similarity_label} similarity for '{name}' must be between 0 and 100%."
                 )
             prior['min_similarity'] = minimum
 
@@ -1038,7 +1045,9 @@ def upload():
         return jsonify({'error': 'No selected file'}), 400
 
     try:
-        df = pd.read_csv(file)
+        # Preserve literal sequence tokens such as NA and NAN; only empty cells
+        # should become missing values in uploaded experimental data.
+        df = pd.read_csv(file, keep_default_na=False, na_values=[''])
         data = df.to_dict(orient='split')
         return jsonify(clean_json_data(data))
     except Exception as e:

@@ -614,7 +614,7 @@ def run_transfer_bo_optimization(
     if model_x.shape[0] < MIN_GP_TRAINING_ROWS:
         raise ValueError(
             'Too few rows satisfy the configured Prior rules. '
-            'Broaden a numerical tolerance or SMILES similarity range, or use Average mode.'
+            'Broaden a numerical tolerance or similarity range, or use Average mode.'
         )
 
     transfer_diagnostics.update({
@@ -1073,7 +1073,7 @@ def run_transfer_bo_estimation(
     if model_x.shape[0] < MIN_GP_TRAINING_ROWS:
         raise ValueError(
             'Too few rows satisfy the configured Prior rules for estimation. '
-            'Broaden a numerical tolerance or SMILES similarity range, or use Average mode.'
+            'Broaden a numerical tolerance or similarity range, or use Average mode.'
         )
 
     def get_kernel(k_name):
@@ -1376,7 +1376,7 @@ def run_transfer_bo_surface(
     if model_rows_used < MIN_GP_TRAINING_ROWS:
         raise ValueError(
             'Too few rows satisfy the configured Prior rules for plotting. '
-            'Broaden a numerical tolerance or SMILES similarity range, or use Average mode.'
+            'Broaden a numerical tolerance or similarity range, or use Average mode.'
         )
 
     # Helper to fit a transfer GP and evaluate on grid_tensor
